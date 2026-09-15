@@ -1,0 +1,105 @@
+# Questions d'entretien Spring Boot — chapitre Programmation réactive
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: rea-mono-flux-lazy
+    niveau: confirme
+    theme: Reactor
+    type: ouverte
+    question: "Quelle différence entre `Mono` et `Flux` ? Que signifie dire qu'ils sont « paresseux » (lazy) ?"
+    reponse: |
+      - `Mono<T>` : 0 ou 1 élément. `Flux<T>` : 0 à N éléments, potentiellement infini.
+      - Les deux implémentent `Publisher` (Reactive Streams).
+      - **Paresseux** : construire une chaîne d'opérateurs (`map`, `flatMap`…) ne déclenche **aucun** traitement. Rien ne s'exécute tant que personne ne s'abonne (`subscribe()`), ce qui arrive implicitement dans un contrôleur WebFlux, ou explicitement dans un test avec `StepVerifier`.
+      - Contraste avec `CompletableFuture`, déjà en cours d'exécution dès sa création.
+    explication: "Le piège classique en entretien : un candidat qui pense qu'un `Mono` créé mais jamais utilisé (ni retourné, ni `subscribe()`) produit quand même un effet. Ce n'est jamais le cas."
+    lecon: reactor-bases
+
+  - id: rea-map-flatmap
+    niveau: confirme
+    theme: Reactor
+    type: qcm
+    question: "Un repository réactif expose `Mono<Client> findById(Long id)`. Pour transformer un `Mono<Long>` en `Mono<Client>`, quel opérateur utiliser ?"
+    choix:
+      - "`map`, car il s'applique à toute fonction de transformation"
+      - "`flatMap`, car la fonction de transformation renvoie elle-même un `Mono`"
+      - "`then`, car on enchaîne une nouvelle étape"
+      - "`zip`, car on combine un identifiant et un client"
+    reponse: 1
+    explication: "`map` attend une fonction `T -> R` (synchrone). Ici la fonction renvoie un `Mono<Client>` : `map` produirait un `Mono<Mono<Client>>`. `flatMap` « aplatit » le résultat en `Mono<Client>`. Confusion très fréquente en début d'apprentissage de Reactor."
+    lecon: reactor-bases
+
+  - id: rea-webflux-netty-choix
+    niveau: senior
+    theme: WebFlux
+    type: ouverte
+    question: "Un projet a à la fois `spring-boot-starter-web` et `spring-boot-starter-webflux` dans ses dépendances. Quel mode Spring Boot démarre-t-il, et pourquoi cette situation arrive-t-elle souvent par erreur ?"
+    reponse: |
+      - Spring Boot démarre en **mode servlet** (Tomcat, Spring MVC) : en présence des deux starters, il considère que WebFlux n'a pas été ajouté intentionnellement pour remplacer MVC.
+      - Cause fréquente : `WebClient` (le client HTTP réactif) est fourni par le starter WebFlux, et des équipes l'ajoutent à un projet MVC existant juste pour ce client, sans réaliser qu'elles importent tout WebFlux.
+      - Pour forcer explicitement le mode réactif : retirer `spring-boot-starter-web`, ou positionner `spring.main.web-application-type=reactive`.
+      - Symptôme typique en production : des contrôleurs qui renvoient `Mono`/`Flux` mais tournent en réalité sur Tomcat, sans aucun bénéfice du modèle non bloquant.
+    lecon: webflux
+
+  - id: rea-r2dbc-vs-jpa
+    niveau: confirme
+    theme: R2DBC
+    type: qcm
+    question: "Pourquoi ne peut-on pas simplement changer le driver JDBC en driver R2DBC pour rendre une application Spring Data JPA réactive ?"
+    choix:
+      - "C'est possible : JPA détecte le type de driver et bascule automatiquement en mode non bloquant"
+      - "JPA/Hibernate repose sur JDBC et des concepts fondamentalement bloquants (session, proxies de chargement paresseux) ; passer au réactif exige une autre couche, Spring Data R2DBC"
+      - "R2DBC est réservé aux bases NoSQL, incompatible avec les entités JPA"
+      - "Il suffit d'ajouter `@Async` sur les méthodes du repository"
+    reponse: 1
+    explication: "JPA n'a pas de mode réactif : Hibernate est construit sur JDBC de bout en bout (session de persistance, cache de premier niveau, proxies). Le passage au réactif implique un changement complet de couche d'accès aux données, avec `ReactiveCrudRepository`, sans équivalent direct à `@OneToMany` ni au chargement paresseux."
+    lecon: r2dbc
+
+  - id: rea-r2dbc-relations
+    niveau: senior
+    theme: R2DBC
+    type: ouverte
+    question: "Comment charge-t-on les données liées (par exemple les commandes d'un client) avec Spring Data R2DBC, puisqu'il n'existe pas d'équivalent à `@OneToMany` ?"
+    reponse: |
+      - Pas de relations automatiques ni de chargement paresseux en R2DBC : chaque relation se charge par une **requête séparée**, composée explicitement.
+      - Motif courant : `clientRepository.findById(id).flatMap(client -> commandeRepository.findByClientId(client.getId()).collectList().map(commandes -> new Fiche(client, commandes)))`.
+      - Pour des cas plus complexes ou des besoins de performance (une seule requête avec jointure), utiliser `DatabaseClient` avec du SQL direct plutôt que d'essayer de reproduire le confort de JPA.
+      - `Mono.zip` permet d'exécuter plusieurs requêtes indépendantes en parallèle plutôt qu'en séquence, pour réduire la latence totale.
+    explication: "Un bon candidat sait qu'il ne s'agit pas d'une limitation temporaire mais d'un choix de conception assumé de Spring Data R2DBC, lié à l'absence de session de persistance."
+    lecon: r2dbc
+
+  - id: rea-choix-modele
+    niveau: senior
+    theme: "Réactif, MVC ou virtual threads"
+    type: ouverte
+    question: "Comment choisiriez-vous entre Spring MVC classique, Spring MVC avec virtual threads (Java 21) et Spring WebFlux pour une nouvelle application à forte concurrence ?"
+    reponse: |
+      Le critère central : la proportion de temps passé à **attendre des I/O** plutôt qu'à calculer, et le besoin ou non de **streaming**.
+
+      - **MVC classique** : suffisant si la concurrence reste modérée. Écosystème le plus large (JPA, JDBC), le plus simple à déboguer.
+      - **MVC + virtual threads** (`spring.threads.virtual.enabled=true`, Java 21) : garde le code impératif et l'écosystème bloquant existant (JPA, RestClient), mais la JVM démonte le thread porteur pendant les I/O bloquantes standards. Couvre aujourd'hui une large part des cas qui justifiaient auparavant le réactif.
+      - **WebFlux** : reste la seule option pour du streaming avec **backpressure** explicite (flux continus, SSE), ou en Java 17 si les virtual threads ne sont pas disponibles. Coût : accès aux données entièrement non bloquant obligatoire (R2DBC), complexité accrue, débogage moins direct.
+
+      Piège à éviter : passer en réactif « par modernité » sans besoin réel de forte concurrence I/O ni de streaming — le coût de complexité dépasse alors le bénéfice.
+    explication: "Une bonne réponse senior distingue clairement ce que les virtual threads résolvent (le thread bloqué par requête) de ce qu'ils ne résolvent pas (la backpressure, la composition de flux)."
+    lecon: reactif-ou-pas
+
+  - id: rea-pinning-virtual-threads
+    niveau: senior
+    theme: "Réactif, MVC ou virtual threads"
+    type: qcm
+    question: "Pourquoi un bloc `synchronized` contenant un appel bloquant est-il un piège avec les virtual threads ?"
+    code: |
+      public synchronized InfosStock verifierStock(Long produitId) {
+          return appelReseauBloquant(produitId); // opération lente
+      }
+    choix:
+      - "`synchronized` provoque une erreur de compilation avec les virtual threads"
+      - "Le virtual thread reste « épinglé » (pinning) à son thread porteur pendant le blocage, empêchant la JVM de libérer ce thread porteur pour d'autres tâches"
+      - "Les virtual threads ignorent silencieusement `synchronized`, créant un risque de concurrence non protégée"
+      - "Aucun piège : `synchronized` est spécifiquement optimisé pour les virtual threads"
+    reponse: 1
+    explication: "Un virtual thread bloqué à l'intérieur d'un bloc `synchronized` ne peut pas être démonté (pinning) : le thread porteur reste immobilisé pendant toute la durée du blocage. Si ce motif est fréquent avec des opérations lentes, il réduit le gain de concurrence recherché. `java.util.concurrent.locks.ReentrantLock` n'a pas cette limitation."
+    lecon: reactif-ou-pas

@@ -1,0 +1,128 @@
+# Questions d'entretien Spring Boot
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: mig-pourquoi
+    niveau: junior
+    theme: Migrations de schéma
+    type: ouverte
+    question: "Pourquoi ne pas utiliser `spring.jpa.hibernate.ddl-auto=update` en production ?"
+    reponse: |
+      - `update` déduit le schéma des entités JPA **à chaque démarrage** : le résultat dépend de la version du code, sans historique ni contrôle explicite.
+      - Il n'est **pas versionné** : impossible de savoir précisément ce qui a changé, ni de rejouer les mêmes changements de façon identique sur chaque environnement.
+      - Hibernate n'est pas prudent par construction : il ajoute des colonnes mais n'en supprime jamais, ce qui peut masquer des incohérences plutôt qu'un vrai schéma maîtrisé.
+      - Un outil comme Flyway ou Liquibase remplace ça par des scripts de migration **versionnés, historisés et identiques** sur tous les environnements.
+    lecon: flyway
+
+  - id: mig-nommage-flyway
+    niveau: junior
+    theme: Migrations de schéma
+    type: qcm
+    question: "Quel nommage de fichier est correct pour une migration Flyway versionnée ?"
+    choix:
+      - "`migration_1_creer_tables.sql`"
+      - "`V1__creer_tables.sql`"
+      - "`1-creer-tables.sql`"
+      - "`creer_tables_v1.sql`"
+    reponse: 1
+    explication: "Le préfixe `V` suivi du numéro de version, puis un double underscore `__`, puis la description : `V1__creer_tables.sql`. Le double underscore est important, un simple underscore n'est pas reconnu comme séparateur."
+    lecon: flyway
+
+  - id: mig-changeset
+    niveau: junior
+    theme: Migrations de schéma
+    type: qcm
+    question: "Chez Liquibase, qu'est-ce qui identifie de façon unique un `changeSet` ?"
+    choix:
+      - "Son `id` seul"
+      - "La combinaison `id` + `author` + le fichier qui le contient"
+      - "Son numéro de version, comme chez Flyway"
+      - "Son checksum uniquement"
+    reponse: 1
+    explication: "Contrairement à Flyway (numéro de version dans le nom de fichier), Liquibase identifie un changeSet par le triplet id + author + chemin du fichier. Deux fichiers différents peuvent donc réutiliser le même `id` sans collision."
+    lecon: liquibase
+
+  # ---------- Confirmé ----------
+  - id: mig-checksum
+    niveau: confirme
+    theme: Migrations de schéma
+    type: ouverte
+    question: "Que se passe-t-il si on modifie une migration Flyway ou un changeSet Liquibase déjà appliqué en production, puis qu'on redéploie ?"
+    reponse: |
+      - Les deux outils calculent un **checksum** du contenu de chaque migration/changeSet lors de sa première exécution, et le stockent dans leur table d'historique (`flyway_schema_history` pour Flyway, `DATABASECHANGELOG` pour Liquibase).
+      - Au démarrage suivant, l'outil recalcule le checksum du fichier et le compare à celui enregistré.
+      - S'ils diffèrent, le démarrage **échoue** avec une erreur de validation : l'application ne se lance pas.
+      - La bonne pratique est de ne **jamais** modifier une migration déjà appliquée, même pour corriger une faute de frappe : on écrit toujours une **nouvelle** migration.
+    explication: "Un point qui distingue un candidat expérimenté : savoir que ce mécanisme protège aussi contre les migrations appliquées différemment selon l'environnement (dérive de schéma non détectée)."
+    lecon: flyway
+
+  - id: mig-flyway-vs-liquibase
+    niveau: confirme
+    theme: Migrations de schéma
+    type: ouverte
+    question: "Quelle est la différence d'approche entre Flyway et Liquibase ? Comment choisir ?"
+    reponse: |
+      - **Flyway** est « SQL-first » : on écrit directement le SQL qui sera exécuté. Simple, peu de courbe d'apprentissage, mais le rollback est manuel (nouvelle migration).
+      - **Liquibase** propose en plus des **changeTypes abstraits** (`createTable`, `addColumn`…) traduits automatiquement dans le dialecte du SGBD cible, et un rollback automatique pour beaucoup d'entre eux ; il accepte aussi le SQL direct. Il intègre nativement `context` et `label` pour filtrer les changements par environnement.
+      - En pratique, les deux offrent les mêmes garanties de fond (migrations versionnées, historisées, non modifiables après coup). Le choix dépend souvent de l'écosystème de l'équipe, d'un besoin réel de portabilité multi-SGBD, ou simplement d'une préférence pour écrire du SQL brut plutôt qu'une syntaxe abstraite.
+    lecon: liquibase
+
+  - id: mig-ddl-auto-validate
+    niveau: confirme
+    theme: Migrations de schéma
+    type: qcm
+    question: "Quand une application utilise Flyway ou Liquibase pour gérer son schéma, quel réglage `spring.jpa.hibernate.ddl-auto` est recommandé ?"
+    choix:
+      - "`create-drop`, pour repartir d'un schéma propre à chaque redémarrage"
+      - "`update`, pour laisser Hibernate compléter ce que la migration a oublié"
+      - "`validate`, pour qu'Hibernate vérifie seulement que les entités correspondent au schéma existant, sans le modifier"
+      - "`none`, car Flyway ou Liquibase suffisent, il ne faut jamais utiliser `validate`"
+    reponse: 2
+    explication: "`validate` fait d'Hibernate un simple contrôleur de cohérence : il vérifie au démarrage que les entités JPA correspondent au schéma créé par l'outil de migration, et échoue sinon. C'est la combinaison recommandée quand un outil de migration gère déjà le schéma. `none` est aussi possible (aucune vérification), mais `validate` détecte plus tôt une désynchronisation entre entités et schéma."
+    lecon: flyway
+
+  # ---------- Senior ----------
+  - id: mig-expand-contract
+    niveau: senior
+    theme: Migrations de schéma
+    type: ouverte
+    question: "Comment migrer le schéma sans interruption de service lors d'un déploiement progressif (rolling deploy), par exemple pour renommer une colonne ?"
+    reponse: |
+      Pendant un déploiement progressif, plusieurs instances de l'application, sur des versions différentes du code, tournent en même temps sur le **même** schéma pendant quelques minutes. Une migration qui casse la rétrocompatibilité (renommer une colonne en une seule étape, par exemple) fait échouer les instances qui tournent encore avec l'ancien code.
+
+      La stratégie **expand/contract** étale le changement :
+      1. **Expand** : ajouter le nouvel élément (nouvelle colonne, nouvelle table) sans toucher à l'existant — migration purement additive.
+      2. **Transition** : faire cohabiter ancien et nouveau ; migrer les données existantes ; déployer une version de l'application qui écrit dans les deux (ou lit le nouveau avec repli sur l'ancien).
+      3. **Contract** : une fois que toutes les instances en production utilisent le nouveau schéma, supprimer l'ancien élément dans une migration ultérieure.
+
+      Ce principe est indépendant de l'outil utilisé (Flyway ou Liquibase) : c'est une discipline d'écriture des migrations, pas une fonctionnalité de l'outil.
+    explication: "Un bon candidat illustre avec un cas concret (renommer une colonne, changer un type, scinder une table) plutôt que de rester abstrait."
+    lecon: liquibase
+
+  - id: mig-lock-bloque
+    niveau: senior
+    theme: Migrations de schéma
+    type: qcm
+    question: "Une instance de l'application est tuée (kill -9) pendant l'exécution des migrations Liquibase. Au redémarrage, l'application ne démarre plus. Quelle est la cause la plus probable ?"
+    choix:
+      - "Le changelog maître a été supprimé automatiquement"
+      - "Un verrou est resté posé dans `DATABASECHANGELOGLOCK`, empêchant toute nouvelle tentative d'exécution des migrations"
+      - "Toutes les migrations déjà appliquées sont annulées automatiquement"
+      - "Liquibase recrée toutes les tables depuis zéro après un arrêt brutal"
+    reponse: 1
+    explication: "Liquibase pose un verrou dans `DATABASECHANGELOGLOCK` avant d'exécuter les changeSet, pour empêcher deux instances de migrer en parallèle. Un arrêt brutal pendant la migration peut laisser ce verrou posé : les démarrages suivants attendent indéfiniment sa libération. Il faut alors le lever explicitement une fois certain qu'aucune migration n'est réellement en cours."
+    lecon: liquibase
+
+  - id: mig-donnees-reference
+    niveau: senior
+    theme: Migrations de schéma
+    type: ouverte
+    question: "Faut-il mettre des données dans les scripts de migration ? Quelle différence entre données de référence et données de test ?"
+    reponse: |
+      - **Données de référence** (statuts, pays, catégories, rôles…) : nécessaires au **fonctionnement** de l'application, identiques dans tous les environnements. Elles ont leur place dans les migrations — une migration répétable (`R__`) chez Flyway, ou un `changeSet` dédié chez Liquibase — pour rester synchronisées avec le code qui en dépend.
+      - **Données de test** (jeux de données de démo, données pour les tests automatisés) : ne doivent **pas** figurer dans les migrations exécutées en production. Elles se gèrent via des fixtures de test, un profil dédié, ou — chez Liquibase — un `context` explicitement exclu en production.
+      - Mélanger les deux revient à polluer la base de production avec des données qui n'ont de sens qu'en environnement de test, ou à devoir désactiver manuellement des scripts au moment du déploiement — source d'erreurs.
+    lecon: liquibase

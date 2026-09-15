@@ -1,0 +1,90 @@
+# Questions d'entretien Spring Boot — chapitre AOP et proxies
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: aop-concepts-proxy
+    niveau: confirme
+    theme: Concepts de l'AOP
+    type: ouverte
+    question: "Sur quel mécanisme repose Spring AOP ? Citez des exemples d'aspects fournis par Spring lui-même."
+    reponse: |
+      - Spring AOP repose sur des **proxies créés à l'exécution** : chaque bean concerné par un aspect est enveloppé dans un objet intermédiaire qui intercepte les appels de méthode reçus depuis l'extérieur.
+      - Deux types de proxy : **JDK dynamique** (basé sur une interface) ou **CGLIB** (sous-classe du bean). Spring Boot utilise CGLIB par défaut pour tous les beans (`spring.aop.proxy-target-class=true`).
+      - Exemples d'aspects fournis par Spring : `@Transactional` (ouvre/ferme la transaction), `@Cacheable` (vérifie/alimente le cache), `@Async` (délègue l'appel à un thread), `@PreAuthorize` (vérifie les droits avant l'appel).
+    explication: "Bonus en entretien : préciser que le tissage se fait au runtime, contrairement à AspectJ qui peut tisser à la compilation — et que cela limite Spring AOP aux méthodes de beans Spring."
+    lecon: aop-concepts
+
+  - id: aop-jdk-vs-cglib
+    niveau: confirme
+    theme: Concepts de l'AOP
+    type: qcm
+    question: "Un bean implémente une interface. Quel proxy Spring Boot crée-t-il par défaut pour lui appliquer un aspect ?"
+    choix:
+      - "Un proxy JDK dynamique, car une interface est disponible"
+      - "Un proxy CGLIB, car Spring Boot configure `spring.aop.proxy-target-class=true` par défaut"
+      - "Aucun proxy : Spring Boot refuse de proxifier un bean qui a une interface"
+      - "Cela dépend du nombre de méthodes de l'interface"
+    reponse: 1
+    explication: "Contrairement à Spring Framework seul (qui privilégierait un proxy JDK dynamique quand une interface existe), Spring Boot force `proxy-target-class=true` par défaut : un proxy CGLIB (sous-classe du bean) est créé même en présence d'une interface."
+    lecon: aop-concepts
+
+  - id: aop-ecrire-aspect
+    niveau: confirme
+    theme: Écrire un aspect
+    type: ouverte
+    question: "Comment écrit-on un aspect avec Spring ? Quelle différence entre `@Around` et les autres types d'advice ?"
+    reponse: |
+      - Ajouter la dépendance `spring-boot-starter-aop`, puis créer une classe annotée **`@Aspect`** et **`@Component`** (les deux sont nécessaires : `@Aspect` seule ne rend pas la classe détectable par Spring).
+      - Une méthode advice, annotée `@Before`, `@After`, `@AfterReturning`, `@AfterThrowing` ou `@Around`, porte l'expression de pointcut (`execution(...)`, `within(...)`, `@annotation(...)`).
+      - `@Around` est le seul à englober complètement l'appel : il reçoit un `ProceedingJoinPoint` et doit appeler explicitement `proceed()` pour que la méthode ciblée s'exécute. Les autres advices reçoivent un simple `JoinPoint` en lecture seule et ne peuvent pas empêcher l'exécution de la méthode.
+    lecon: aspect-annotations
+
+  - id: aop-around-sans-proceed
+    niveau: senior
+    theme: Écrire un aspect
+    type: qcm
+    question: "Que se passe-t-il si un advice `@Around` ne fait rien d'autre que renvoyer une valeur, sans appeler `proceed()` ?"
+    code: |
+      @Around("execution(* com.boutique.service.*.*(..))")
+      public Object aspect(ProceedingJoinPoint pjp) throws Throwable {
+          return "résultat forcé";
+      }
+    choix:
+      - "La méthode ciblée s'exécute d'abord, puis la valeur est écrasée par « résultat forcé »"
+      - "La méthode ciblée ne s'exécute jamais : l'advice remplace entièrement son comportement"
+      - "Une exception est levée au démarrage de l'application, car `proceed()` est obligatoire"
+      - "Spring appelle `proceed()` automatiquement en fin d'advice si l'advice ne l'a pas fait"
+    reponse: 1
+    explication: "`@Around` remplace l'appel réel : sans `proceed()`, tout le comportement de la méthode ciblée (y compris ses effets de bord) est court-circuité. C'est une fonctionnalité puissante — utilisée par exemple pour des mocks ou du contrôle d'accès — mais aussi une source de bugs quand `proceed()` est oublié par erreur."
+    lecon: aspect-annotations
+
+  - id: aop-auto-invocation
+    niveau: senior
+    theme: Pièges des proxies
+    type: ouverte
+    question: "Qu'est-ce que le piège de l'auto-invocation avec les proxies Spring AOP ? Comment le corriger ?"
+    reponse: |
+      Un bean qui appelle une de ses propres méthodes (`this.methode()`, ou implicitement `methode()`) le fait sur **l'objet réel**, pas sur son proxy. L'appel ne passe donc jamais par le mécanisme d'interception : `@Transactional`, `@Cacheable`, `@Async`, `@PreAuthorize` sont **silencieusement ignorés**, sans erreur ni avertissement.
+
+      Solutions, par ordre de préférence :
+      1. **Déplacer** la méthode annotée dans un **autre bean**, appelé depuis l'extérieur.
+      2. **S'auto-injecter** le proxy (avec `@Lazy` pour éviter un cycle de création) et appeler la méthode via cette référence plutôt que via `this`.
+      3. `AopContext.currentProxy()`, en dernier recours (nécessite `exposeProxy = true`), car cela couple fortement le code à Spring AOP.
+    explication: "Le point qui fait la différence en entretien : insister sur le caractère silencieux du bug — aucune exception, l'application fonctionne, mais sans le comportement transverse attendu."
+    lecon: pieges-proxies
+
+  - id: aop-final-private
+    niveau: senior
+    theme: Pièges des proxies
+    type: qcm
+    question: "Pourquoi `@Cacheable` n'a-t-il aucun effet sur une méthode `private` ?"
+    choix:
+      - "Parce que le cache ne peut pas sérialiser un objet retourné par une méthode `private`"
+      - "Parce qu'une méthode `private` n'est jamais appelable depuis l'extérieur de la classe, donc jamais interceptée par le proxy qui applique les advices"
+      - "Parce que `@Cacheable` nécessite `@Component` sur la classe"
+      - "Ce n'est pas vrai : les méthodes `private` sont interceptées normalement avec un proxy CGLIB"
+    reponse: 1
+    explication: "Un proxy (JDK ou CGLIB) intercepte des appels reçus depuis l'extérieur du bean. Une méthode `private` n'est appelable que depuis l'intérieur de sa propre classe : l'appel ne transite jamais par le proxy, donc `@Cacheable` (comme tout autre advice) ne se déclenche jamais. Même limite pour les méthodes `static`, et pour les méthodes `final` avec un proxy CGLIB (impossible à redéfinir)."
+    lecon: pieges-proxies

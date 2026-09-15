@@ -1,0 +1,195 @@
+# Questions d'entretien Spring Boot
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: j-ioc-di
+    niveau: junior
+    theme: IoC et injection de dépendances
+    type: ouverte
+    question: "Qu'est-ce que l'inversion de contrôle et l'injection de dépendances ?"
+    reponse: |
+      - **Inversion de contrôle (IoC)** : ce n'est plus mon code qui crée et relie ses objets, c'est le conteneur Spring (l'`ApplicationContext`).
+      - **Injection de dépendances (DI)** : la façon concrète de le faire. Une classe déclare ses dépendances (idéalement dans son constructeur) et Spring les lui fournit.
+      - **Intérêt** : couplage faible (on dépend d'interfaces), tests faciles (on passe des mocks), et Spring peut ajouter des fonctions transverses (transactions, sécurité) via des proxies.
+    explication: "Bonus en entretien : citer le « principe d'Hollywood » et donner un exemple concret (un service qui reçoit son repository)."
+    lecon: ioc-conteneur
+
+  - id: j-bean
+    niveau: junior
+    theme: IoC et injection de dépendances
+    type: qcm
+    question: "Qu'est-ce qu'un bean Spring ?"
+    choix:
+      - "Une classe Java qui contient uniquement des getters et des setters"
+      - "Un objet dont la création et le cycle de vie sont gérés par le conteneur Spring"
+      - "Un fichier de configuration XML"
+      - "N'importe quel objet créé dans une application Spring"
+    reponse: 1
+    explication: "Un bean est un objet **géré par le conteneur**. Un objet créé avec `new` dans une application Spring n'est pas un bean. Ne pas confondre avec les « JavaBeans » (classes avec getters/setters)."
+    lecon: ioc-conteneur
+
+  - id: j-stereotypes
+    niveau: junior
+    theme: Déclaration des beans
+    type: ouverte
+    question: "Quelle différence entre `@Component`, `@Service`, `@Repository` et `@Controller` ?"
+    reponse: |
+      Ce sont toutes des annotations qui déclarent un bean détecté par le component scan. `@Service`, `@Repository` et `@Controller` sont des **spécialisations** de `@Component` qui indiquent le rôle de la classe :
+
+      - `@Service` : logique métier. Aucune différence technique avec `@Component`, mais le code est plus lisible.
+      - `@Repository` : accès aux données. Ajoute la **traduction des exceptions** (JDBC/JPA → `DataAccessException`).
+      - `@Controller` : contrôleur web MVC. `@RestController` = `@Controller` + `@ResponseBody` pour les API REST.
+    lecon: declarer-beans
+
+  - id: j-springbootapplication
+    niveau: junior
+    theme: Déclaration des beans
+    type: qcm
+    question: "Que regroupe l'annotation `@SpringBootApplication` ?"
+    choix:
+      - "`@Configuration`, `@EnableWebMvc` et `@Transactional`"
+      - "`@SpringBootConfiguration`, `@EnableAutoConfiguration` et `@ComponentScan`"
+      - "`@Component`, `@Service` et `@Repository`"
+      - "`@EnableAutoConfiguration` uniquement"
+    reponse: 1
+    explication: "`@SpringBootConfiguration` (une `@Configuration`), `@EnableAutoConfiguration` (l'auto-configuration de Spring Boot) et `@ComponentScan` (scan à partir du package de cette classe)."
+    lecon: declarer-beans
+
+  # ---------- Confirmé ----------
+  - id: c-bean-vs-component
+    niveau: confirme
+    theme: Déclaration des beans
+    type: ouverte
+    question: "Quelle différence entre `@Component` et `@Bean` ? Quand utiliser l'un ou l'autre ?"
+    reponse: |
+      - `@Component` se met sur une **classe** : Spring la détecte par le scan et l'instancie lui-même.
+      - `@Bean` se met sur une **méthode** d'une classe `@Configuration` : c'est moi qui crée l'objet, Spring le gère ensuite.
+
+      J'utilise `@Component` (ou ses stéréotypes) pour **mes propres classes**, et `@Bean` pour les **classes externes** (librairies, JDK, ex. `RestClient`, `Clock`) ou quand la création demande de la logique ou plusieurs instances configurées différemment.
+    lecon: declarer-beans
+
+  - id: c-constructeur
+    niveau: confirme
+    theme: Injection de dépendances
+    type: ouverte
+    question: "Pourquoi l'injection par constructeur est-elle recommandée plutôt que l'injection par champ ?"
+    reponse: |
+      - Les dépendances peuvent être **`final`** : l'objet est immuable et complet dès sa création.
+      - Les dépendances sont **visibles** dans la signature du constructeur (on voit tout de suite ce dont la classe a besoin).
+      - La classe est **testable sans Spring** : `new CommandeService(mockRepo)`. Avec l'injection par champ, le champ reste `null`.
+      - Un constructeur avec trop de paramètres signale une classe qui a trop de responsabilités.
+      - Depuis Spring 4.3, avec un seul constructeur, `@Autowired` est même inutile.
+    lecon: injection-dependances
+
+  - id: c-deux-implementations
+    niveau: confirme
+    theme: Injection de dépendances
+    type: qcm
+    question: "Deux classes `@Service` implémentent `PaiementService`. Un contrôleur injecte `PaiementService` sans autre précision. Que se passe-t-il ?"
+    choix:
+      - "Spring injecte la première classe trouvée par le scan"
+      - "Le démarrage échoue avec une `NoUniqueBeanDefinitionException`"
+      - "Spring injecte `null` et l'erreur apparaît au premier appel"
+      - "Spring crée un proxy qui appelle les deux implémentations"
+    reponse: 1
+    explication: "Spring ne choisit pas au hasard : l'application ne démarre pas (« required a single bean, but 2 were found »). Solutions : `@Primary` sur l'implémentation par défaut, `@Qualifier(\"nomDuBean\")` au point d'injection, ou injecter `List<PaiementService>`."
+    lecon: injection-dependances
+
+  - id: c-scopes
+    niveau: confirme
+    theme: Scopes et cycle de vie
+    type: ouverte
+    question: "Quels scopes de bean connaissez-vous ? Quel est le scope par défaut ?"
+    reponse: |
+      - **singleton** (par défaut) : une seule instance par conteneur, créée au démarrage, partagée par tous.
+      - **prototype** : une nouvelle instance à chaque demande. Spring ne gère pas sa destruction.
+      - Scopes web : **request** (une instance par requête HTTP), **session** (une par session utilisateur), **application** (une par application web), et **websocket**.
+
+      Précision utile : le singleton Spring est unique **par conteneur**, ce n'est pas le patron de conception Singleton.
+    lecon: scopes-cycle-vie
+
+  - id: c-singleton-thread-safe
+    niveau: confirme
+    theme: Scopes et cycle de vie
+    type: qcm
+    question: "Un bean singleton Spring est-il thread-safe ?"
+    choix:
+      - "Oui, Spring synchronise automatiquement les appels aux singletons"
+      - "Non, pas automatiquement : il est partagé par tous les threads, il doit donc être sans état modifiable (ou gérer la concurrence)"
+      - "Oui, car chaque thread reçoit sa propre copie"
+      - "Seulement s'il est annoté `@Service`"
+    reponse: 1
+    explication: "Toutes les requêtes HTTP utilisent la même instance en parallèle. Un attribut modifiable dans un service (ex. `private Commande commandeEnCours`) mélange les données entre utilisateurs. Règle : des services **sans état**, les données passent par les paramètres des méthodes."
+    lecon: scopes-cycle-vie
+
+  # ---------- Senior ----------
+  - id: s-prototype-dans-singleton
+    niveau: senior
+    theme: Scopes et cycle de vie
+    type: ouverte
+    question: "Que se passe-t-il quand on injecte un bean prototype dans un singleton ? Comment obtenir une nouvelle instance à chaque utilisation ?"
+    reponse: |
+      Le prototype est créé **une seule fois**, au moment où le singleton est construit. Le singleton garde ensuite toujours la même instance : le scope prototype est « perdu ».
+
+      Solutions :
+      - Injecter un **`ObjectProvider<T>`** et appeler `getObject()` à chaque besoin (la plus simple).
+      - Une méthode annotée **`@Lookup`**, que Spring redéfinit pour renvoyer un nouveau bean.
+      - Un **proxy de scope** : `@Scope(value = "prototype", proxyMode = ScopedProxyMode.TARGET_CLASS)`. Attention, chaque appel de méthode sur le proxy crée alors une nouvelle instance.
+    lecon: scopes-cycle-vie
+
+  - id: s-configuration-proxy
+    niveau: senior
+    theme: Déclaration des beans
+    type: qcm
+    question: "Quelle différence y a-t-il entre déclarer des méthodes `@Bean` dans une classe `@Configuration` et dans une classe `@Component` ?"
+    code: |
+      @Configuration // ou @Component ?
+      public class AppConfig {
+          @Bean public Horloge horloge() { return new Horloge(); }
+          @Bean public ServiceA serviceA() { return new ServiceA(horloge()); }
+      }
+    choix:
+      - "Aucune, les deux annotations sont équivalentes"
+      - "Avec `@Configuration`, un proxy CGLIB fait que `horloge()` renvoie le singleton existant ; avec `@Component`, chaque appel crée un nouvel objet"
+      - "Les méthodes `@Bean` sont ignorées dans une classe `@Component`"
+      - "Avec `@Component`, les beans sont automatiquement de scope prototype"
+    reponse: 1
+    explication: "C'est le mode « full » (`@Configuration`) contre le mode « lite » (`@Component`, ou `@Configuration(proxyBeanMethods = false)`). En mode lite, l'appel direct `horloge()` est un simple appel Java : `ServiceA` reçoit une `Horloge` qui n'est pas le bean du conteneur. En mode lite, on reçoit plutôt la dépendance en paramètre : `serviceA(Horloge horloge)`."
+    lecon: declarer-beans
+
+  - id: s-dependance-circulaire
+    niveau: senior
+    theme: Injection de dépendances
+    type: ouverte
+    question: "Qu'est-ce qu'une dépendance circulaire ? Comment Spring Boot la gère-t-il et comment la résoudre ?"
+    reponse: |
+      A a besoin de B, et B a besoin de A (directement ou via une chaîne).
+
+      - Avec l'injection **par constructeur**, Spring ne peut pas créer ces beans : il faudrait A pour créer B et B pour créer A (`BeanCurrentlyInCreationException`).
+      - Depuis **Spring Boot 2.6**, les références circulaires sont **interdites par défaut**, quel que soit le type d'injection. L'application échoue au démarrage : *« The dependencies of some of the beans in the application context form a cycle »*.
+
+      Résolution, dans l'ordre de préférence :
+      1. **Revoir la conception** : extraire la logique commune dans une troisième classe, ou découpler avec des événements (`ApplicationEventPublisher`).
+      2. `@Lazy` sur un des paramètres : Spring injecte un proxy résolu plus tard.
+      3. En dernier recours : `spring.main.allow-circular-references=true` (inefficace si le cycle ne passe que par des constructeurs).
+    lecon: injection-dependances
+
+  - id: s-cycle-de-vie
+    niveau: senior
+    theme: Scopes et cycle de vie
+    type: ouverte
+    question: "Décrivez le cycle de vie d'un bean Spring, de sa création à sa destruction."
+    reponse: |
+      1. **Instanciation** (constructeur, avec l'injection par constructeur).
+      2. **Injection** des autres dépendances (setters, champs).
+      3. Callbacks **`*Aware`** (`BeanNameAware`, `ApplicationContextAware`…).
+      4. **`BeanPostProcessor`** avant l'initialisation.
+      5. **Initialisation** : `@PostConstruct` → `InitializingBean.afterPropertiesSet()` → `initMethod`.
+      6. **`BeanPostProcessor`** après l'initialisation : création des **proxies** AOP (`@Transactional`, `@Async`…).
+      7. Bean **prêt**.
+      8. À l'arrêt : `@PreDestroy` → `DisposableBean.destroy()` → `destroyMethod`. Pas de destruction pour les prototypes.
+    explication: "Le point qui fait la différence en entretien : savoir que les proxies sont créés à l'étape 6, par un `BeanPostProcessor`. C'est pour cela que le bean injecté ailleurs est le proxy, et non l'objet d'origine."
+    lecon: scopes-cycle-vie

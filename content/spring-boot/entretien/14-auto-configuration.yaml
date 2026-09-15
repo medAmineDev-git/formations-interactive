@@ -1,0 +1,93 @@
+# Questions d'entretien Spring Boot — Auto-configuration en profondeur
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: autoc-conditionnelles-ordre
+    niveau: senior
+    theme: Conditions avancées
+    type: ouverte
+    question: "Pourquoi @ConditionalOnBean et @ConditionalOnMissingBean sont-elles réservées, en pratique, aux classes d'auto-configuration plutôt qu'à la configuration applicative classique ?"
+    reponse: |
+      - Ces deux conditions interrogent les beans **déjà enregistrés au moment de leur évaluation**, pas l'état final du contexte.
+      - Spring Boot garantit que **toutes** les classes `@Configuration` de l'application sont traitées avant l'ensemble des classes d'auto-configuration. C'est ce qui rend `@ConditionalOnMissingBean` fiable dans une auto-configuration : elle voit forcément les beans applicatifs déjà définis.
+      - Rien ne garantit en revanche l'ordre de traitement **entre plusieurs classes `@Configuration` applicatives** : y poser un `@ConditionalOnBean` qui dépend d'une autre de ces classes est fragile, le résultat pouvant changer selon un ordre non maîtrisé.
+      - Entre auto-configurations, cet ordre se contrôle explicitement avec `@AutoConfiguration(before/after)` ou `@AutoConfigureOrder` — un mécanisme qui n'a pas d'équivalent standard pour la configuration applicative.
+    explication: "Le point qui distingue une réponse senior : expliquer *pourquoi* l'ordre est garanti dans un cas et pas dans l'autre, pas seulement réciter la règle."
+    lecon: conditions-avancees
+
+  - id: autoc-onproperty
+    niveau: confirme
+    theme: Conditions avancées
+    type: qcm
+    question: "Que produit `@ConditionalOnProperty(prefix = \"boutique.export\", name = \"active\")` (sans `havingValue` ni `matchIfMissing`) si la propriété `boutique.export.active` est absente de la configuration ?"
+    choix:
+      - "La configuration s'active, car aucune valeur explicite n'est requise"
+      - "La configuration ne s'active pas : par défaut, une propriété absente ne satisfait pas la condition"
+      - "Le démarrage échoue avec une exception"
+      - "Le comportement dépend du type de la propriété (String, boolean…)"
+    reponse: 1
+    explication: "`matchIfMissing` vaut `false` par défaut : sans elle et sans la propriété présente, la condition n'est pas remplie. Sans `havingValue`, n'importe quelle valeur différente de `\"false\"` aurait suffi si la propriété avait été présente — mais son absence pure et simple désactive la configuration."
+    lecon: conditions-avancees
+
+  - id: autoc-nommage-starter
+    niveau: junior
+    theme: Créer un starter
+    type: ouverte
+    question: "Quelle convention de nommage suit-on pour créer son propre starter Spring Boot, et pourquoi ?"
+    reponse: |
+      - `spring-boot-starter-*` est réservé aux starters **officiels**, maintenus par l'équipe Spring Boot.
+      - Un starter tiers se nomme à l'inverse `<nom>-spring-boot-starter` (ex. `acme-spring-boot-starter`), et son module d'auto-configuration `<nom>-spring-boot-autoconfigure`.
+      - Objectif : éviter toute confusion sur la provenance et la maintenance du module.
+    lecon: creer-starter
+
+  - id: autoc-contextrunner
+    niveau: senior
+    theme: Créer un starter
+    type: qcm
+    question: "Pourquoi préfère-t-on `ApplicationContextRunner` à un test `@SpringBootTest` complet pour tester une classe d'auto-configuration ?"
+    choix:
+      - "`ApplicationContextRunner` est plus rapide à écrire mais teste moins de cas"
+      - "Il construit un contexte minimal et isolé (sans serveur web ni auto-configurations superflues), ce qui permet de tester précisément une auto-configuration et ses conditions (classpath simulé, propriétés, bean utilisateur déjà présent…)"
+      - "`@SpringBootTest` ne peut pas être utilisé en dehors d'une application Spring Boot complète"
+      - "`ApplicationContextRunner` remplace complètement le besoin d'écrire des tests d'intégration"
+    reponse: 1
+    explication: "L'intérêt n'est pas la rapidité d'écriture mais l'isolation : `withClassLoader(new FilteredClassLoader(...))` simule l'absence d'une classe, `withUserConfiguration(...)` simule un bean déjà défini par l'utilisateur, `withPropertyValues(...)` simule la configuration — chacune de ces conditions se teste indépendamment, sans dépendre d'un contexte applicatif complet."
+    lecon: creer-starter
+
+  - id: autoc-evenements-demarrage
+    niveau: senior
+    theme: Cycle de démarrage
+    type: ouverte
+    question: "Quelle différence entre ApplicationStartedEvent et ApplicationReadyEvent ? Dans quel cas ce choix a-t-il un impact réel ?"
+    reponse: |
+      - `ApplicationStartedEvent` : le contexte vient d'être rafraîchi (`refresh()` terminé), tous les beans singleton non paresseux existent, mais les `CommandLineRunner`/`ApplicationRunner` n'ont **pas encore** été exécutés.
+      - `ApplicationReadyEvent` : publié **après** l'exécution de ces runners — l'application est pleinement prête à traiter du trafic.
+      - Impact concret : un traitement qui dépend du résultat d'un `ApplicationRunner` (ex. chargement initial de données, warm-up d'un cache) doit écouter `ApplicationReadyEvent`, pas `ApplicationStartedEvent`, sous peine de s'exécuter trop tôt.
+    lecon: cycle-demarrage
+
+  - id: autoc-bfpp-vs-bpp
+    niveau: senior
+    theme: Cycle de démarrage
+    type: qcm
+    question: "Quel mécanisme est responsable de la création des proxies AOP (par exemple pour @Transactional) pendant le cycle de vie d'un bean ?"
+    choix:
+      - "Un `BeanFactoryPostProcessor`, qui modifie la définition du bean avant sa création"
+      - "Un `BeanPostProcessor`, dont `postProcessAfterInitialization` peut remplacer l'instance initialisée par un proxy"
+      - "Un `EnvironmentPostProcessor`, exécuté avant la création du contexte"
+      - "Un `ApplicationContextInitializer`, exécuté juste après la création du contexte"
+    reponse: 1
+    explication: "`BeanFactoryPostProcessor` agit sur les métadonnées (définitions), avant toute instanciation. `BeanPostProcessor` agit sur l'instance déjà construite et initialisée, et peut la remplacer par un autre objet — c'est exactement ce que fait Spring pour substituer un bean par son proxy AOP après l'étape d'initialisation (`@PostConstruct` compris)."
+    lecon: cycle-demarrage
+
+  - id: autoc-lazy-init
+    niveau: confirme
+    theme: Cycle de démarrage
+    type: ouverte
+    question: "Quel est l'effet de spring.main.lazy-initialization=true et quel est son principal inconvénient ?"
+    reponse: |
+      - Rend **tous** les beans paresseux : chacun est créé au premier usage, plutôt qu'au démarrage de l'application.
+      - Avantage : démarrage perçu comme plus rapide.
+      - Inconvénient principal : une erreur de câblage (dépendance manquante, bean mal configuré) qui aurait normalement stoppé le démarrage n'est découverte qu'à la première requête qui déclenche la création du bean fautif — en production, potentiellement après la mise en service. La première requête concernée subit aussi le coût de création qui aurait sinon eu lieu au démarrage.
+    lecon: cycle-demarrage

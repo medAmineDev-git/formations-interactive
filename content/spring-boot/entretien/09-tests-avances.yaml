@@ -1,0 +1,109 @@
+# Questions d'entretien Spring Boot — Tests avancés
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: testa-data-jpa-test
+    niveau: confirme
+    theme: "@DataJpaTest"
+    type: ouverte
+    question: "Que charge `@DataJpaTest` par rapport à `@SpringBootTest` ? Quelle base de données utilise-t-il par défaut ?"
+    reponse: |
+      - `@DataJpaTest` est un test slice limité à la couche JPA : entités, repositories Spring Data, `EntityManager`. Ni `@Service`, ni `@Controller` ne sont chargés.
+      - Par défaut, `@AutoConfigureTestDatabase` **remplace** la vraie source de données par une base embarquée en mémoire (H2, si présente sur le classpath).
+      - Chaque test s'exécute dans une transaction **annulée automatiquement** à la fin (`@Transactional` implicite) : pas de pollution entre tests.
+      - Pour utiliser la vraie base configurée (par exemple avec Testcontainers), il faut `@AutoConfigureTestDatabase(replace = Replace.NONE)`.
+    lecon: data-jpa-test
+
+  - id: testa-flush-clear
+    niveau: senior
+    theme: "@DataJpaTest"
+    type: qcm
+    question: "Pourquoi ce test peut-il passer à tort, même si la requête `@Query` de mise à jour est mal écrite et ne modifie aucune ligne ?"
+    code: |
+      @Test
+      void modifierPrix_est_bien_persiste() {
+          Produit produit = entityManager.persistAndFlush(new Produit("Clavier", 49.90));
+
+          repository.modifierPrix(produit.getId(), 39.90); // @Query UPDATE ...
+          entityManager.flush();
+
+          Produit relu = repository.findById(produit.getId()).orElseThrow();
+          assertThat(relu.getPrix()).isEqualTo(39.90);
+      }
+    choix:
+      - "`persistAndFlush` ne fonctionne pas correctement dans ce contexte"
+      - "Sans `entityManager.clear()`, `findById` renvoie l'objet déjà présent dans le contexte de persistance (avec l'ancien prix en mémoire), sans requête SQL réelle si Hibernate optimise l'accès"
+      - "`@Query` ne peut jamais échouer silencieusement"
+      - "Le test est correct et ne peut pas passer à tort"
+    reponse: 1
+    explication: "Le piège classique : le contexte de persistance associe déjà cet identifiant à l'entité chargée. Sans `clear()` avant la relecture, le test peut ne pas détecter qu'une requête `UPDATE` n'a rien modifié en base, car Hibernate peut renvoyer l'instance en mémoire plutôt que de forcer une nouvelle lecture. `clear()` avant `findById` garantit une vraie vérification."
+    lecon: data-jpa-test
+
+  - id: testa-pourquoi-testcontainers
+    niveau: confirme
+    theme: Testcontainers
+    type: ouverte
+    question: "Pourquoi préférer Testcontainers à H2 pour certains tests, alors qu'H2 est plus rapide et plus simple à mettre en place ?"
+    reponse: |
+      - H2 **imite** le dialecte SQL de PostgreSQL ou MySQL, mais imparfaitement : types spécifiques (`JSONB`, `UUID`…), fonctions SQL, contraintes, tri/collation peuvent différer du vrai SGBD.
+      - Un test qui passe sous H2 peut donc masquer un bug qui n'apparaît qu'en production, contre le vrai moteur.
+      - Testcontainers démarre le **vrai** service (ex. PostgreSQL) dans un conteneur Docker jetable : le test s'exécute contre le même moteur qu'en production.
+      - Le compromis : Docker est requis sur la machine de test, et le démarrage d'un conteneur prend plusieurs secondes — à limiter en partageant un conteneur entre plusieurs classes de test plutôt que d'en redémarrer un à chaque fois.
+    explication: "Bonus en entretien : mentionner `@ServiceConnection` (Spring Boot 3.1+), qui configure automatiquement la connexion à partir du conteneur, contre l'ancienne approche `@DynamicPropertySource`."
+    lecon: testcontainers
+
+  - id: testa-service-connection
+    niveau: confirme
+    theme: Testcontainers
+    type: qcm
+    question: "À quoi sert `@ServiceConnection` posée sur un champ `@Container` ?"
+    choix:
+      - "À documenter le code sans effet sur la configuration"
+      - "À configurer automatiquement les propriétés de connexion Spring Boot (URL, identifiants) à partir du conteneur démarré, sans `@DynamicPropertySource`"
+      - "À forcer le conteneur à démarrer avant tous les autres beans du contexte"
+      - "À garantir que le conteneur utilise toujours le même port réseau entre deux exécutions"
+    reponse: 1
+    explication: "Avant Spring Boot 3.1, il fallait enregistrer manuellement les propriétés de connexion avec `@DynamicPropertySource`, car le port du conteneur n'est connu qu'au démarrage. `@ServiceConnection` fait ce travail automatiquement pour les types de conteneurs reconnus par Spring Boot (PostgreSQL, MySQL, Kafka, Redis…)."
+    lecon: testcontainers
+
+  - id: testa-401-vs-403
+    niveau: confirme
+    theme: Tester la sécurité
+    type: qcm
+    question: "Un test envoie une requête `DELETE` avec `@WithMockUser(roles = \"USER\")` mais sans `.with(csrf())`, sur une application où la protection CSRF est active. Quel statut est renvoyé, et pourquoi ?"
+    choix:
+      - "200, car `@WithMockUser` désactive automatiquement la vérification CSRF"
+      - "401, car l'utilisateur n'est pas authentifié"
+      - "403, car la requête sans jeton CSRF valide est rejetée avant même que les rôles ne soient évalués"
+      - "500, une erreur serveur liée à la configuration de sécurité"
+    reponse: 2
+    explication: "La protection CSRF s'applique indépendamment de l'authentification et de l'autorisation : une requête qui modifie l'état sans jeton CSRF valide est rejetée en 403 avant que le rôle `USER` ne soit même examiné. C'est une source fréquente de faux échecs dans les tests : le vrai bug (droit insuffisant) serait aussi un 403, mais pour une raison différente — il faut ajouter `.with(csrf())` pour isoler la vérification d'autorisation."
+    lecon: tests-securite
+
+  - id: testa-pyramide-choix
+    niveau: confirme
+    theme: Stratégie de tests
+    type: ouverte
+    question: "Comment décidez-vous, pour une nouvelle fonctionnalité, quels niveaux de test écrire (unitaire, test slice, intégration) ?"
+    reponse: |
+      - La **logique métier** (calculs, règles, cas limites) va en tests **unitaires** : rapides, nombreux, avec des mocks pour les dépendances.
+      - Le **contrat HTTP** d'un contrôleur (routage, statuts, validation, sérialisation JSON) va en `@WebMvcTest` : plus rapide qu'un contexte complet, tout en testant le vrai comportement Spring MVC.
+      - Une **requête** un peu complexe (dérivée ou `@Query`) va en `@DataJpaTest`, éventuellement avec Testcontainers si le comportement dépend du vrai SGBD.
+      - Un ou deux tests d'**intégration complète** (`@SpringBootTest`, éventuellement Testcontainers) vérifient que tout s'assemble correctement, sans dupliquer tous les cas déjà couverts en unitaire.
+      - Objectif : suivre la pyramide des tests — beaucoup d'unitaires, moins de test slices, très peu de tests lourds — pour garder une suite rapide à exécuter.
+    lecon: strategie-tests
+
+  - id: testa-cache-contexte-senior
+    niveau: senior
+    theme: Stratégie de tests
+    type: ouverte
+    question: "Une suite de tests `@SpringBootTest` devient de plus en plus lente à mesure que le projet grossit. Quelles causes chercheriez-vous en priorité ?"
+    reponse: |
+      - Trop de classes de test avec des configurations **différentes** (profils, `@MockitoBean` sur des beans différents, propriétés `@TestPropertySource`), qui empêchent le cache de contexte Spring de réutiliser un contexte déjà démarré.
+      - Un usage trop large de `@DirtiesContext`, qui force un redémarrage complet du contexte à chaque test concerné.
+      - Trop de scénarios testés en `@SpringBootTest` (voire en Testcontainers) qui pourraient l'être en test unitaire ou en test slice, plus rapides.
+      - Solution générale : regrouper les tests qui partagent la même configuration (classe de base commune pour un conteneur Testcontainers partagé, par exemple), et redescendre dans la pyramide des tests ce qui peut l'être.
+    explication: "Le point qui distingue une réponse senior : savoir que le cache de contexte compare la configuration complète (annotations, profils, beans remplacés), et que la moindre variation en coupe le bénéfice — pas seulement citer « le contexte Spring est lent »."
+    lecon: strategie-tests

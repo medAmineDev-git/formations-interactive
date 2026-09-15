@@ -1,0 +1,104 @@
+nom: Spring Boot
+icone: 🌱
+couleur: "#6db33f"
+description: Le framework Java pour créer des applications et des API REST prêtes pour la production.
+
+# Ordre du parcours. Chaque leçon (lecons/<chapitre>/*.md) indique son chapitre dans son frontmatter.
+chapitres:
+  # ---------- Débutant ----------
+  - id: fondamentaux
+    niveau: debutant
+    titre: Les fondamentaux — IoC et injection de dépendances
+    description: Le cœur de Spring. Comprendre comment le conteneur crée vos objets et les relie entre eux.
+
+  - id: demarrer
+    niveau: debutant
+    titre: Démarrer un projet Spring Boot
+    description: Créer un projet, comprendre sa structure et ce que Spring Boot configure pour vous.
+
+  - id: configuration
+    niveau: debutant
+    titre: Configurer l'application
+    description: Fichiers de configuration, injection de valeurs, configuration typée et profils.
+
+  - id: api-rest
+    niveau: debutant
+    titre: Créer une API REST
+    description: Exposer des endpoints HTTP, lire les requêtes, construire les réponses, valider et gérer les erreurs.
+
+  - id: data-jpa
+    niveau: debutant
+    titre: Accéder aux données avec Spring Data JPA
+    description: Entités, repositories, requêtes et relations pour travailler avec une base de données.
+
+  - id: tests
+    niveau: debutant
+    titre: Tester son application
+    description: Tests unitaires, tests d'intégration et tests de contrôleurs.
+
+  # ---------- Intermédiaire ----------
+  - id: jpa-avance
+    niveau: intermediaire
+    titre: JPA avancé
+    description: Transactions, chargement des relations et N+1, pagination, projections, verrouillage et audit.
+
+  - id: securite
+    niveau: intermediaire
+    titre: Spring Security
+    description: La chaîne de filtres, l'authentification, l'autorisation, les API stateless avec JWT, CORS et CSRF.
+
+  - id: tests-avances
+    niveau: intermediaire
+    titre: Tests avancés
+    description: Tester la couche de données, utiliser une vraie base avec Testcontainers, tester la sécurité, bâtir une stratégie de tests.
+
+  - id: aop
+    niveau: intermediaire
+    titre: AOP et proxies
+    description: Comprendre les aspects et les proxies qui font fonctionner @Transactional, @Cacheable ou @Async — et leurs pièges.
+
+  - id: api-externes
+    niveau: intermediaire
+    titre: Appeler et documenter des API
+    description: Consommer une API avec RestClient, documenter la sienne avec OpenAPI, gérer timeouts et reprises.
+
+  - id: cache-async
+    niveau: intermediaire
+    titre: Cache, tâches asynchrones et planifiées
+    description: "@Cacheable, @Async et @Scheduled : fonctionnement, configuration et pièges."
+
+  - id: migrations
+    niveau: intermediaire
+    titre: Migrations de base de données
+    description: Faire évoluer le schéma en toute sécurité avec Flyway ou Liquibase.
+
+  # ---------- Avancé ----------
+  - id: auto-config-avancee
+    niveau: avance
+    titre: Auto-configuration en profondeur
+    description: Les conditions en détail, créer son propre starter, le démarrage de Spring Boot étape par étape.
+
+  - id: observabilite
+    niveau: avance
+    titre: Observabilité
+    description: Actuator, métriques avec Micrometer et Prometheus, logs structurés et tracing distribué.
+
+  - id: reactif
+    niveau: avance
+    titre: Programmation réactive
+    description: Reactor, WebFlux, R2DBC — et comment choisir entre réactif, MVC et virtual threads.
+
+  - id: messagerie
+    niveau: avance
+    titre: Événements et messagerie
+    description: Événements Spring, Kafka et RabbitMQ pour découpler les traitements.
+
+  - id: microservices
+    niveau: avance
+    titre: Microservices avec Spring Cloud
+    description: Principes, configuration centralisée, découverte de services, API Gateway et résilience.
+
+  - id: production
+    niveau: avance
+    titre: En production
+    description: Virtual threads, images natives, conteneurs et déploiement, performance.

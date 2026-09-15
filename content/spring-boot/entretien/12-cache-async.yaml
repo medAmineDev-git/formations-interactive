@@ -1,0 +1,83 @@
+# Questions d'entretien Spring Boot — chapitre Cache, tâches asynchrones et planifiées
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: cas-cacheable-cacheput-cacheevict
+    niveau: confirme
+    theme: Cache
+    type: ouverte
+    question: "Quelle différence entre @Cacheable, @CachePut et @CacheEvict ?"
+    reponse: |
+      - **`@Cacheable`** : lit d'abord le cache. Si une entrée existe pour la clé calculée, la méthode **n'est pas exécutée**, la valeur en cache est renvoyée directement.
+      - **`@CachePut`** : exécute **toujours** la méthode, puis écrase l'entrée en cache avec le nouveau résultat. Utile pour une mise à jour dont on veut aussi rafraîchir le cache.
+      - **`@CacheEvict`** : retire une entrée (ou toutes, avec `allEntries = true`), sans lire ni écrire de résultat en cache.
+
+      Les trois reposent sur un **proxy**, comme `@Transactional` : un appel interne (`this.methode()`) les contourne silencieusement.
+    lecon: cache
+
+  - id: cas-cache-manager-defaut
+    niveau: confirme
+    theme: Cache
+    type: qcm
+    question: "Sans dépendance de cache ajoutée au projet, quel `CacheManager` Spring Boot utilise-t-il, et quelle est sa limite principale ?"
+    choix:
+      - "`RedisCacheManager`, avec un TTL par défaut de 10 minutes"
+      - "`ConcurrentMapCacheManager`, un cache en mémoire sans aucune expiration ni éviction automatique"
+      - "`CaffeineCacheManager`, avec une taille maximale par défaut de 1000 entrées"
+      - "Aucun : `@Cacheable` échoue au démarrage sans fournisseur configuré"
+    reponse: 1
+    explication: "Le `ConcurrentMapCacheManager` par défaut est un simple `ConcurrentHashMap` en mémoire : pratique pour démarrer ou pour des tests, mais sans expiration ni limite de taille, il peut grossir indéfiniment. En production, on configure généralement Caffeine (cache local avec TTL) ou Redis (cache partagé entre instances) via `spring.cache.type`."
+    lecon: cache
+
+  - id: cas-async-executor-defaut
+    niveau: confirme
+    theme: Traitement asynchrone
+    type: ouverte
+    question: "Comment @Async choisit-il le thread qui exécute la méthode, et comment configurer sa taille de pool ?"
+    reponse: |
+      Sans `Executor` explicitement fourni, Spring Boot auto-configure un `ThreadPoolTaskExecutor` (bean `applicationTaskExecutor`), configurable via les propriétés `spring.task.execution.pool.core-size`, `max-size`, `queue-capacity`, ainsi que `spring.task.execution.thread-name-prefix`.
+
+      On peut aussi déclarer un `Executor` nommé (`@Bean(name = "monExecutor")`) et le référencer explicitement avec `@Async("monExecutor")`, pour isoler un traitement gourmand du pool par défaut partagé par le reste de l'application.
+    lecon: async
+
+  - id: cas-async-exception-void
+    niveau: senior
+    theme: Traitement asynchrone
+    type: qcm
+    question: "Une méthode `@Async` qui renvoie `void` lève une exception. Comment l'appelant peut-il en être informé ?"
+    choix:
+      - "L'exception remonte normalement à l'appelant, comme un appel synchrone"
+      - "L'appelant ne peut jamais en être informé directement : sans `AsyncUncaughtExceptionHandler` personnalisé, elle est seulement journalisée"
+      - "L'application s'arrête automatiquement pour éviter un état incohérent"
+      - "Spring relance automatiquement la méthode jusqu'à trois fois avant d'abandonner"
+    reponse: 1
+    explication: "Une méthode `void` ne renvoie aucun objet par lequel une exception pourrait transiter : l'appelant continue son exécution sans rien savoir de l'échec. Par défaut, `SimpleAsyncUncaughtExceptionHandler` journalise l'exception ; on peut fournir sa propre implémentation via `AsyncConfigurer.getAsyncUncaughtExceptionHandler()`. Pour que l'appelant puisse réagir à un échec, il faut faire renvoyer un `CompletableFuture<T>` à la méthode, et gérer l'erreur avec `exceptionally()` ou `handle()`."
+    lecon: async
+
+  - id: cas-cron-six-champs
+    niveau: confirme
+    theme: Tâches planifiées
+    type: qcm
+    question: "Combien de champs compte une expression cron utilisée par `@Scheduled`, et quelle est la particularité par rapport au cron Unix classique ?"
+    choix:
+      - "Cinq champs, exactement comme le cron Unix"
+      - "Six champs : un champ secondes est ajouté en premier, avant minutes, heures, jour du mois, mois et jour de la semaine"
+      - "Sept champs, incluant l'année"
+      - "Quatre champs seulement : minutes, heures, jour, mois"
+    reponse: 1
+    explication: "Une expression cron Spring commence par un champ secondes, absent du cron Unix classique (qui ne compte que cinq champs). Oublier ce champ supplémentaire est une source fréquente d'erreur en copiant une expression cron Unix telle quelle."
+    lecon: scheduling
+
+  - id: cas-scheduled-multi-instances
+    niveau: senior
+    theme: Tâches planifiées
+    type: ouverte
+    question: "Une application avec une tâche @Scheduled est déployée sur plusieurs instances. Quel problème cela pose-t-il, et comment le résoudre ?"
+    reponse: |
+      Chaque instance possède son propre `TaskScheduler`, totalement indépendant des autres : Spring n'a aucune notion de cluster. Résultat, la tâche s'exécute **sur chaque instance** au même moment, ce qui peut dupliquer un traitement (envoi en double, facturation en double, fichier généré plusieurs fois…).
+
+      Solution courante : une bibliothèque comme **ShedLock**, qui pose un verrou partagé (base de données, Redis…) via l'annotation `@SchedulerLock`, pour garantir qu'une seule instance exécute la tâche à un instant donné. D'autres approches existent (déléguer la planification à un orchestrateur externe, un job Kubernetes `CronJob` unique…), mais ShedLock a l'avantage de rester dans le code Spring, sans infrastructure supplémentaire.
+    explication: "Le point que les candidats oublient souvent : Spring ne protège de rien ici, ce n'est pas un bug mais l'absence totale de coordination entre instances par conception."
+    lecon: scheduling

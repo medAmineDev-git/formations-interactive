@@ -1,0 +1,117 @@
+# Questions d'entretien Spring Boot — chapitre JPA avancé
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: jpaa-transactional-autoinvocation
+    niveau: confirme
+    theme: Transactions
+    type: ouverte
+    question: "Pourquoi un appel `this.autreMethode()` vers une méthode `@Transactional` du même bean ne déclenche-t-il pas de transaction ?"
+    reponse: |
+      - `@Transactional` fonctionne grâce à un **proxy** que Spring place autour du bean : c'est ce proxy qui ouvre la transaction avant d'appeler la vraie méthode.
+      - Un appel `this.autreMethode()` se fait directement sur l'objet, **sans repasser par le proxy** : seuls les appels venant d'un autre bean, via l'injection, passent par lui.
+      - Résultat : l'annotation est silencieusement ignorée, sans erreur ni avertissement — un piège classique et difficile à repérer.
+      - Solutions : sortir la méthode dans une autre classe (injectée normalement), ou s'auto-injecter le proxy (moins naturel, à réserver aux cas où la première solution n'est pas possible).
+    explication: "Le point qui fait la différence en entretien : savoir expliquer que c'est le mécanisme même de l'AOP par proxy qui est en cause, pas une limitation arbitraire de Spring."
+    lecon: transactions
+
+  - id: jpaa-rollback-checked
+    niveau: confirme
+    theme: Transactions
+    type: qcm
+    question: "Que se passe-t-il avec ce code si `verifierStock` lève l'exception vérifiée `StockIndisponibleException` ?"
+    code: |
+      @Transactional
+      public Commande valider(Commande commande) throws StockIndisponibleException {
+          repo.save(commande);
+          stockService.verifierStock(commande); // throws StockIndisponibleException (extends Exception)
+      }
+    choix:
+      - "La transaction est annulée (rollback), comme pour toute exception"
+      - "La transaction est validée (commit) : par défaut, seules les `RuntimeException` et `Error` déclenchent un rollback"
+      - "L'application ne compile pas : une méthode `@Transactional` ne peut pas déclarer `throws`"
+      - "Le comportement dépend du gestionnaire de transactions configuré"
+    reponse: 1
+    explication: "Sans `rollbackFor`, la règle de rollback par défaut de Spring ne couvre que les exceptions non vérifiées. `commande` reste donc enregistrée malgré l'échec de la vérification de stock — un bug fréquent quand on utilise des exceptions métier vérifiées sans préciser `rollbackFor`."
+    lecon: transactions
+
+  - id: jpaa-n-plus-1
+    niveau: confirme
+    theme: Performance et chargement des relations
+    type: ouverte
+    question: "Qu'est-ce que le problème N+1 ? Comment le détecter et le corriger ?"
+    reponse: |
+      - **Définition** : une requête initiale ramène N résultats, puis chaque résultat déclenche une requête séparée pour charger une relation (LAZY par exemple) : 1 + N requêtes au lieu d'une seule.
+      - **Détection** : activer `spring.jpa.show-sql=true` (et `format_sql`) en développement, ou observer un nombre de requêtes qui grandit avec le nombre de résultats dans les outils de supervision (traces, logs).
+      - **Corrections** :
+        - `JOIN FETCH` en JPQL, ou `@EntityGraph` : une seule requête, avec jointure.
+        - `@BatchSize` (par relation) ou `hibernate.default_batch_fetch_size` (globalement) : regroupe les requêtes par lots au lieu d'une par élément.
+      - Éviter le réflexe de passer la relation en `EAGER` : cela charge la relation systématiquement, y compris quand elle est inutile, et déplace le problème plutôt que de le résoudre.
+    lecon: lazy-eager-n-plus-1
+
+  - id: jpaa-open-in-view
+    niveau: senior
+    theme: Performance et chargement des relations
+    type: qcm
+    question: "Quelle est la principale conséquence de laisser `spring.jpa.open-in-view` à sa valeur par défaut dans une API REST à fort trafic ?"
+    choix:
+      - "Toutes les relations passent automatiquement en `EAGER`"
+      - "La session Hibernate reste ouverte pendant tout le traitement de la requête HTTP, ce qui peut masquer des requêtes N+1 exécutées hors de la couche service (par exemple pendant la sérialisation JSON)"
+      - "L'application ne démarre pas sans configurer explicitement cette propriété"
+      - "Les transactions deviennent automatiquement en lecture seule"
+    reponse: 1
+    explication: "`open-in-view` vaut `true` par défaut (avec un avertissement au démarrage tant qu'il n'est pas fixé explicitement). Cela évite les `LazyInitializationException` en gardant la session ouverte au-delà de la transaction métier, au prix de requêtes potentiellement invisibles exécutées à un moment peu maîtrisé du traitement de la requête. Beaucoup d'équipes le désactivent volontairement pour forcer un chargement explicite des relations dans le service."
+    lecon: lazy-eager-n-plus-1
+
+  - id: jpaa-page-slice
+    niveau: junior
+    theme: Pagination
+    type: qcm
+    question: "Quelle différence entre `Page<T>` et `Slice<T>` en Spring Data ?"
+    choix:
+      - "`Page` exécute une requête `COUNT` en plus pour connaître le nombre total d'éléments ; `Slice` s'en passe et sait seulement s'il existe une page suivante"
+      - "`Slice` ne fonctionne qu'avec des requêtes dérivées, `Page` uniquement avec `@Query`"
+      - "Ce sont deux noms différents pour exactement le même mécanisme"
+      - "`Page` charge toute la table, `Slice` seulement la page demandée"
+    reponse: 0
+    explication: "`Page` étend `Slice` et ajoute `getTotalElements()`/`getTotalPages()`, calculés par une requête `COUNT` distincte. `Slice` est plus léger quand le total exact n'a pas besoin d'être affiché (un simple « charger plus », par exemple)."
+    lecon: pagination-tri
+
+  - id: jpaa-projection-dto-pourquoi
+    niveau: confirme
+    theme: Projections et DTO
+    type: ouverte
+    question: "Pourquoi éviter d'exposer directement les entités JPA dans les réponses d'une API REST ?"
+    reponse: |
+      - **Relations LAZY** : une relation non chargée déclenche une `LazyInitializationException` si elle est accédée après la fermeture de la session (typiquement pendant la sérialisation JSON, hors de la transaction).
+      - **Boucles de sérialisation** : une relation bidirectionnelle (A → B → A) peut faire boucler indéfiniment le sérialiseur JSON.
+      - **Fuite de données** : une entité complète peut exposer des champs qui ne devraient jamais quitter le service (mot de passe haché, champs d'audit internes…).
+      - **Couplage** : le contrat de l'API se retrouve lié au schéma de base de données ; un changement de colonne peut casser l'API sans qu'on l'ait voulu.
+      - **Solution** : des DTO (à la main, via une projection Spring Data, ou générés par MapStruct pour les mappings répétés) qui définissent explicitement ce que l'API expose, indépendamment du modèle de persistance.
+    lecon: projections-dto
+
+  - id: jpaa-verrouillage-optimiste-pessimiste
+    niveau: senior
+    theme: Verrouillage
+    type: ouverte
+    question: "Quelle différence entre verrouillage optimiste et verrouillage pessimiste en JPA ? Comment choisir ?"
+    reponse: |
+      - **Optimiste** (`@Version`) : aucun verrou tenu en base. Hibernate inclut la version dans le `WHERE` de chaque `UPDATE` ; si elle a changé depuis la lecture, `0` ligne est affectée et une `ObjectOptimisticLockingFailureException` est levée. Le conflit est détecté **après coup**, à l'écriture.
+      - **Pessimiste** (`@Lock(LockModeType.PESSIMISTIC_WRITE)`) : la ligne est verrouillée dès la lecture (`SELECT ... FOR UPDATE` typiquement), jusqu'à la fin de la transaction. Les autres transactions concurrentes attendent.
+      - **Choix** : l'optimiste convient à la majorité des cas (conflits rares, coût quasi nul tant qu'il n'y en a pas). Le pessimiste se réserve aux cas de forte contention sur une même ligne, où un échec après coup serait plus coûteux qu'une attente — par exemple décrémenter un stock très demandé.
+      - Le pessimiste réduit la concurrence et peut provoquer des interblocages si les verrous sont pris dans des ordres différents par des transactions concurrentes : à utiliser sur des transactions courtes et ciblées.
+    lecon: verrouillage-auditing
+
+  - id: jpaa-auditing-ingredients
+    niveau: confirme
+    theme: Audit
+    type: ouverte
+    question: "Quels sont les deux éléments nécessaires pour que `@CreatedDate`/`@LastModifiedDate` soient réellement renseignés sur une entité ?"
+    reponse: |
+      - `@EnableJpaAuditing` sur une classe `@Configuration` : active l'infrastructure d'audit au niveau de l'**application**.
+      - `@EntityListeners(AuditingEntityListener.class)` sur l'**entité** elle-même (ou sur une classe de base `@MappedSuperclass` dont elle hérite) : déclenche réellement le remplissage des champs à la persistance et à la mise à jour.
+      - Les deux sont indépendants : oublier l'un des deux laisse les champs `@CreatedDate`/`@LastModifiedDate` vides, sans erreur au démarrage.
+      - Pour `@CreatedBy`/`@LastModifiedBy` (qui a créé/modifié), il faut en plus un bean `AuditorAware<T>` fourni par l'application, typiquement basé sur le contexte de sécurité.
+    lecon: verrouillage-auditing

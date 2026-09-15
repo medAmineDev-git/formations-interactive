@@ -1,0 +1,95 @@
+# Questions d'entretien Spring Boot — chapitre En production
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: prod-virtual-threads-quand
+    niveau: confirme
+    theme: Virtual threads
+    type: ouverte
+    question: "Dans quels cas les virtual threads apportent-ils un vrai gain de performance, et dans quels cas n'apportent-ils rien ?"
+    reponse: |
+      - Gain réel sur les charges **I/O-bound** : beaucoup de requêtes qui passent le plus clair de leur temps à attendre une base de données, un service externe ou un fichier. Le thread virtuel est démonté pendant l'attente, libérant le carrier pour une autre tâche — on peut ainsi traiter beaucoup plus de requêtes concurrentes sans multiplier les threads OS coûteux.
+      - Aucun gain sur du **calcul CPU-bound** : un traitement intensif (compression, sérialisation lourde) occupe le carrier du début à la fin exactement comme un thread plateforme. Le nombre de cœurs reste la seule limite.
+      - Activation simple via `spring.threads.virtual.enabled=true` (Spring Boot 3.2+, Java 21) : bascule le serveur web et les exécuteurs par défaut de `@Async`/`@Scheduled`.
+      - Les ressources externes limitées (pool de connexions JDBC, quotas d'API tiers) restent le vrai goulot d'étranglement : lever la limite côté threads ne lève pas les limites en aval.
+    explication: "Le point qui distingue un candidat expérimenté : ne pas présenter les virtual threads comme une accélération générale, mais bien comme une solution à la contention de threads sur des charges bloquantes."
+    lecon: virtual-threads
+
+  - id: prod-virtual-threads-pinning
+    niveau: senior
+    theme: Virtual threads
+    type: qcm
+    question: "Un service annoté avec un bloc `synchronized` effectue un appel HTTP bloquant à l'intérieur de ce bloc, sur un thread virtuel. Quel est le risque principal sous forte charge ?"
+    code: |
+      public synchronized void traiter(Commande c) {
+          reponseExterne = clientHttp.appeler(c); // bloquant
+      }
+    choix:
+      - "Aucun risque : les threads virtuels ignorent totalement `synchronized`"
+      - "Le thread virtuel reste épinglé (pinné) à son carrier pendant tout l'appel bloquant, empêchant ce carrier de servir d'autres threads virtuels et réduisant la concurrence effective"
+      - "Une `ConcurrentModificationException` est levée systématiquement"
+      - "Le thread virtuel est détruit automatiquement par la JVM et l'appel échoue"
+    reponse: 1
+    explication: "`synchronized` provoque un épinglage : contrairement à un blocage d'E/S normal (où le thread virtuel est démonté), ici il reste attaché à son carrier. Sous forte charge, avec beaucoup de threads virtuels épinglés simultanément, le nombre de carriers disponibles (proche du nombre de cœurs) redevient le facteur limitant — exactement le problème que les virtual threads étaient censés résoudre. La solution : remplacer `synchronized` par un `ReentrantLock` dans le code chaud, ou déplacer l'appel bloquant hors du bloc synchronisé."
+    lecon: virtual-threads
+
+  - id: prod-native-cout-avantage
+    niveau: senior
+    theme: Images natives
+    type: ouverte
+    question: "Quels sont les gains et les coûts d'une image native GraalVM par rapport à une JVM classique ? Pour quel type d'application ce compromis est-il pertinent ?"
+    reponse: |
+      **Gains** : démarrage en quelques dizaines de millisecondes (contre plusieurs centaines de ms à quelques secondes), mémoire résidente réduite — décisif pour du serverless (cold start), une CLI lancée fréquemment, ou du scale-to-zero.
+
+      **Coûts** :
+      - Temps de build très allongé (souvent plusieurs minutes), pénalisant en CI/CD et en itération locale.
+      - **Hypothèse de monde fermé** : tout usage de réflexion, proxy dynamique ou ressource doit être connu au moment du build. Un usage non détecté échoue silencieusement ou lève une erreur à l'exécution — il faut parfois déclarer des `RuntimeHints` explicites.
+      - Pas d'optimisation JIT à chaud : le code est figé au build, alors qu'une JVM classique continue de s'optimiser pendant l'exécution.
+      - Profils et conditions Spring en grande partie **figés au build**, peu modifiables à l'exécution.
+
+      Ce compromis est pertinent pour des fonctions serverless, des outils CLI, ou des contextes à mise à l'échelle très dynamique — beaucoup moins pour une application monolithique de longue durée, où le temps de build allongé pèse à chaque déploiement pour un gain de démarrage qui ne compte qu'une fois.
+    explication: "En entretien, mentionner concrètement les `RuntimeHints` et le traitement AOT de Spring montre une compréhension du fonctionnement interne, pas seulement du discours marketing autour des images natives."
+    lecon: images-natives
+
+  - id: prod-native-hints
+    niveau: confirme
+    theme: Images natives
+    type: qcm
+    question: "Pourquoi un code qui fonctionne parfaitement sur une JVM classique peut-il échouer à l'exécution une fois compilé en image native ?"
+    choix:
+      - "Parce que les images natives n'exécutent pas correctement les boucles et les conditions"
+      - "Parce que GraalVM applique une hypothèse de monde fermé : tout accès par réflexion, proxy ou ressource non déclaré au moment du build risque d'être absent du binaire final"
+      - "Parce que les images natives ne supportent pas Spring Boot au-delà de la version 2"
+      - "Parce que les images natives n'acceptent aucun DTO Java, seulement des types primitifs"
+    reponse: 1
+    explication: "GraalVM détermine au moment du build tout ce qui doit être conservé dans le binaire. Le traitement AOT de Spring couvre automatiquement une grande partie des usages internes du framework, mais un usage manuel de réflexion (désérialisation directe, bibliothèque tierce non compatible) peut nécessiter un `RuntimeHints` explicite ou `@RegisterReflectionForBinding` pour ne pas échouer au runtime, parfois seulement visible en testant réellement le binaire natif."
+    lecon: images-natives
+
+  - id: prod-docker-shutdown
+    niveau: senior
+    theme: Conteneurisation et déploiement
+    type: ouverte
+    question: "Lors d'un déploiement en continu (rolling update) sur Kubernetes, quels réglages Spring Boot évitent de couper des requêtes en cours et d'envoyer du trafic vers une instance qui n'est pas encore prête ?"
+    reponse: |
+      - **Arrêt gracieux** : `server.shutdown=graceful` et `spring.lifecycle.timeout-per-shutdown-phase` (délai maximal). À la réception du signal d'arrêt, le serveur cesse d'accepter de nouvelles requêtes mais laisse les requêtes en cours se terminer, au lieu de couper brutalement toutes les connexions.
+      - **Sonde readiness** (`/actuator/health/readiness`) : indique à l'orchestrateur que l'instance n'est pas encore prête à recevoir du trafic (initialisation en cours), pour ne router les requêtes que vers des instances réellement opérationnelles.
+      - **Sonde liveness** (`/actuator/health/liveness`) : sert à un objectif différent — signaler qu'une instance est bloquée et doit être redémarrée. Les confondre (par exemple faire échouer la liveness à cause d'une dépendance externe temporairement indisponible) provoque des redémarrages en boucle inutiles au lieu d'un simple retrait temporaire du trafic.
+      - Sans arrêt gracieux, un rolling update coupe des requêtes en plein traitement à chaque déploiement — un problème souvent invisible en dehors des périodes de déploiement, donc facile à manquer en test.
+    explication: "Le fil rouge à tenir en entretien : distinguer clairement liveness (redémarrer) et readiness (router ou non le trafic), une confusion fréquente même chez des développeurs expérimentés."
+    lecon: docker-deploiement
+
+  - id: prod-performance-mesurer
+    niveau: confirme
+    theme: Performance et tuning
+    type: qcm
+    question: "Une application souffre de lenteurs sous charge. Quelle est la première étape recommandée avant de modifier un paramètre comme la taille du pool HikariCP ?"
+    choix:
+      - "Doubler immédiatement `maximum-pool-size`, c'est rarement risqué"
+      - "Mesurer où se situe réellement le goulot d'étranglement (métriques, requêtes lentes, état du pool de connexions) avant tout changement"
+      - "Passer directement `spring.jpa.open-in-view` à `false` sans vérifier son impact"
+      - "Activer l'initialisation paresseuse, qui améliore systématiquement les performances en production"
+    reponse: 1
+    explication: "Modifier un paramètre sans mesure de référence revient à changer un réglage au hasard : impossible de savoir ensuite si l'effet observé vient du changement ou d'une variation naturelle de charge. Un pool de connexions trop grand peut même dégrader le débit par contention côté base de données — d'où l'importance de mesurer avant d'agir, puis de valider le changement avec un test de charge reproductible."
+    lecon: performance

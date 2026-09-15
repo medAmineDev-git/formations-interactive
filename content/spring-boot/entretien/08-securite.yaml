@@ -1,0 +1,105 @@
+# Questions d'entretien Spring Boot — chapitre Sécurité
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: sec-starter-effect
+    niveau: junior
+    theme: Architecture de Spring Security
+    type: ouverte
+    question: "Qu'est-ce qui change dans une application Spring Boot dès qu'on ajoute la dépendance `spring-boot-starter-security`, sans écrire aucune configuration ?"
+    reponse: |
+      - Toutes les routes deviennent protégées : il faut être authentifié pour y accéder.
+      - Un utilisateur `user` est créé automatiquement, avec un mot de passe **généré aléatoirement**, affiché une seule fois dans les logs au démarrage.
+      - Un formulaire de login par défaut est disponible pour une application web.
+
+      Ce comportement n'est là que comme garde-fou de démarrage : en pratique, on déclare toujours sa propre `SecurityFilterChain` et son propre `UserDetailsService`.
+    lecon: security-architecture
+
+  - id: sec-passwordencoder-bcrypt
+    niveau: junior
+    theme: Authentification
+    type: qcm
+    question: "À quoi sert le préfixe `{bcrypt}` devant un mot de passe encodé stocké en base ?"
+    choix:
+      - "C'est une erreur de configuration, il ne devrait jamais apparaître"
+      - "Il indique au `DelegatingPasswordEncoder`, utilisé par défaut, quel algorithme utiliser pour vérifier ce mot de passe"
+      - "C'est le nom de la colonne SQL"
+      - "Il signifie que le mot de passe n'est pas encore encodé"
+    reponse: 1
+    explication: "Le `DelegatingPasswordEncoder` (bcrypt par défaut chez Spring Boot) préfixe chaque hash de l'identifiant d'algorithme entre accolades, ce qui permet de faire cohabiter plusieurs algorithmes ou de migrer progressivement."
+    lecon: authentification
+
+  - id: sec-401-403
+    niveau: confirme
+    theme: Autorisation
+    type: ouverte
+    question: "Quelle différence faites-vous entre une réponse 401 et une réponse 403 ?"
+    reponse: |
+      - **401 Unauthorized** : le serveur ne sait pas qui vous êtes — pas de jeton, pas de session, identifiants absents ou invalides.
+      - **403 Forbidden** : le serveur sait qui vous êtes (vous êtes authentifié), mais vous n'avez pas le droit d'effectuer cette action (rôle ou autorité insuffisants).
+
+      En pratique : un `@PreAuthorize("hasRole('ADMIN')")` qui échoue pour un utilisateur authentifié sans ce rôle lève une `AccessDeniedException`, traduite en 403. Une requête sans authentification du tout est bloquée en amont avec un 401.
+    explication: "Piège classique en entretien : beaucoup répondent « erreur d'authentification » aux deux. Il faut bien distinguer identité inconnue (401) et identité connue mais droits insuffisants (403)."
+    lecon: autorisation
+
+  - id: sec-authorizeorder
+    niveau: confirme
+    theme: Autorisation
+    type: qcm
+    question: "Pourquoi cette configuration laisse-t-elle `/admin/**` accessible à n'importe quel utilisateur authentifié, sans exiger le rôle `ADMIN` ?"
+    code: |
+      http.authorizeHttpRequests(auth -> auth
+          .anyRequest().authenticated()
+          .requestMatchers("/admin/**").hasRole("ADMIN")
+      );
+    choix:
+      - "C'est un bug de Spring Security, la règle `hasRole` devrait toujours gagner"
+      - "Les règles de `authorizeHttpRequests` sont évaluées dans l'ordre d'écriture ; `anyRequest()` correspond déjà à `/admin/**`, donc la règle suivante n'est jamais atteinte"
+      - "`hasRole(\"ADMIN\")` est mal orthographié, il faudrait `hasAuthority(\"ADMIN\")`"
+      - "`/admin/**` doit être déclaré avec `@PreAuthorize`, pas avec `requestMatchers`"
+    reponse: 1
+    explication: "C'est un piège fréquent en entretien comme en revue de code : la première règle qui correspond à l'URL l'emporte. Placer `anyRequest()` avant une règle plus spécifique neutralise silencieusement cette dernière."
+    lecon: autorisation
+
+  - id: sec-jwt-stateless
+    niveau: confirme
+    theme: JWT et OAuth2
+    type: ouverte
+    question: "Pourquoi une API destinée à des clients mobiles ou des SPA utilise-t-elle typiquement un JWT plutôt qu'une session HTTP classique ?"
+    reponse: |
+      - Une session classique doit être retrouvée côté serveur à chaque requête (en mémoire, ou dans un stockage partagé si plusieurs instances) : cela complique le passage à l'échelle horizontal.
+      - Un JWT est **auto-porteur** : sa signature suffit à vérifier son authenticité, sans rien avoir stocké au préalable côté serveur. N'importe quelle instance peut le valider indépendamment.
+      - Côté configuration Spring Security : `SessionCreationPolicy.STATELESS` + `http.oauth2ResourceServer(oauth2 -> oauth2.jwt(...))`, avec les clés de vérification récupérées via `issuer-uri` / `jwk-set-uri`.
+
+      Contrepartie à connaître : un JWT ne peut pas être « invalidé » aussi simplement qu'une session (il reste valide jusqu'à expiration, sauf mécanisme de révocation additionnel).
+    lecon: jwt-oauth2
+
+  - id: sec-csrf-jwt
+    niveau: confirme
+    theme: CORS et CSRF
+    type: qcm
+    question: "Une API est purement stateless, authentifiée par un JWT transmis dans l'en-tête `Authorization`, sans aucun cookie de session. Désactiver la protection CSRF sur cette API est-elle une décision raisonnable ?"
+    choix:
+      - "Non, la protection CSRF doit toujours rester active, quelle que soit l'authentification utilisée"
+      - "Oui : CSRF exploite l'envoi automatique de cookies par le navigateur ; sans cookie de session, il n'existe pas de vecteur d'attaque CSRF à protéger"
+      - "Non, car sans CSRF, CORS ne peut plus fonctionner"
+      - "Oui, mais seulement si l'application ne sert aucune page HTML"
+    reponse: 1
+    explication: "CSRF exploite le fait que le navigateur joint automatiquement les cookies à une requête, même déclenchée par un site tiers. Un jeton JWT dans un en-tête doit être ajouté explicitement par le code JavaScript légitime : un site tiers ne peut pas le faire suivre à l'insu de l'utilisateur."
+    lecon: cors-csrf
+
+  - id: sec-filterchain-interne
+    niveau: senior
+    theme: Architecture de Spring Security
+    type: ouverte
+    question: "Décrivez ce qui se passe, filtre par filtre, entre l'arrivée d'une requête HTTP dans le conteneur Servlet et la décision d'autorisation finale."
+    reponse: |
+      1. Le conteneur (Tomcat…) appelle le seul filtre qu'il connaît vraiment : le `DelegatingFilterProxy`, enregistré par Spring Boot.
+      2. Celui-ci délègue au bean Spring `springSecurityFilterChain`, qui est en réalité un `FilterChainProxy`.
+      3. Le `FilterChainProxy` choisit, parmi les `SecurityFilterChain` déclarées, la première dont le `RequestMatcher` correspond à l'URL, puis exécute sa propre liste ordonnée de filtres.
+      4. Dans cette liste, on retrouve typiquement (sans que ce soit exhaustif ni figé selon la configuration) : un filtre qui recharge le `SecurityContext`, un filtre d'authentification (formulaire ou Basic), l'`ExceptionTranslationFilter` qui traduit les exceptions de sécurité en réponse HTTP, et en dernier l'`AuthorizationFilter` qui applique les règles d'`authorizeHttpRequests`.
+      5. Si l'authentification ou l'autorisation échoue, l'exception est interceptée par l'`ExceptionTranslationFilter` et traduite en 401 ou 403 (ou une redirection vers le login, selon la configuration).
+    explication: "Le point qui distingue une bonne réponse : savoir que le seul filtre réellement enregistré dans le conteneur Servlet est le `DelegatingFilterProxy`, et que tout le reste (`FilterChainProxy`, `SecurityFilterChain`, filtres internes) se joue côté Spring."
+    lecon: security-architecture

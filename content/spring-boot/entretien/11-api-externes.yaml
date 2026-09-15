@@ -1,0 +1,88 @@
+# Questions d'entretien Spring Boot — chapitre api-externes
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ext-restclient-vs-resttemplate
+    niveau: junior
+    theme: RestClient
+    type: ouverte
+    question: "Pourquoi privilégier RestClient plutôt que RestTemplate pour du nouveau code ?"
+    reponse: |
+      - `RestTemplate` est en **mode maintenance** depuis Spring 5 : il fonctionne toujours mais ne reçoit plus de nouvelles fonctionnalités.
+      - `RestClient` (Spring Framework 6.1 / Spring Boot 3.2) propose une **API fluide**, plus lisible, inspirée de `WebClient`, tout en restant **synchrone** (pas besoin de `spring-webflux`).
+      - Spring Boot auto-configure un bean `RestClient.Builder` déjà relié aux convertisseurs JSON de l'application.
+    explication: "Point à ne pas confondre : RestClient reste bloquant, contrairement à WebClient qui est réactif."
+    lecon: rest-client
+
+  - id: ext-erreur-http-defaut
+    niveau: confirme
+    theme: RestClient
+    type: qcm
+    question: "Sans configuration particulière, que fait `retrieve()` quand la réponse a un statut 500 ?"
+    choix:
+      - "Il renvoie `null`"
+      - "Il lève une `HttpServerErrorException`"
+      - "Il lève une `MethodArgumentNotValidException`"
+      - "Il renvoie le corps de la réponse tel quel, à charge pour l'appelant de vérifier le statut"
+    reponse: 1
+    explication: "`retrieve()` lève par défaut une exception pour tout statut 4xx (`HttpClientErrorException`) ou 5xx (`HttpServerErrorException`). Pour un comportement différent, il faut le personnaliser avec `onStatus(...)`."
+    lecon: rest-client
+
+  - id: ext-liste-parameterizedtyperef
+    niveau: confirme
+    theme: RestClient
+    type: ouverte
+    question: "Pourquoi `restClient.get().retrieve().body(List.class)` ne suffit-il pas pour récupérer une `List<Produit>` correctement typée, et comment faire ?"
+    reponse: |
+      - Java efface les types génériques à la compilation (*type erasure*) : à l'exécution, `List<Produit>` et `List<String>` sont indiscernables. `body(List.class)` produirait une liste de `LinkedHashMap`, pas de `Produit`.
+      - Solution : passer un `ParameterizedTypeReference<List<Produit>>` à `body(...)`, qui conserve l'information de type générique via une sous-classe anonyme.
+    lecon: rest-client
+
+  - id: ext-openapi-role
+    niveau: junior
+    theme: Documentation OpenAPI
+    type: ouverte
+    question: "Que fait springdoc-openapi dans une application Spring Boot ?"
+    reponse: |
+      - Génère automatiquement une description **OpenAPI** de l'API à partir des `@RestController` existants (endpoints, paramètres, schémas des DTO), exposée sur `/v3/api-docs`.
+      - Fournit une interface web interactive, **Swagger UI** (`/swagger-ui.html`), pour explorer et tester l'API depuis le navigateur.
+      - Des annotations dédiées (`@Operation`, `@Schema`, `@ApiResponse`…) permettent d'enrichir ce que springdoc ne peut pas déduire seul du code.
+    lecon: openapi
+
+  - id: ext-code-first-contract-first
+    niveau: confirme
+    theme: Documentation OpenAPI
+    type: ouverte
+    question: "Quelle différence entre une approche « code-first » et « contract-first » pour documenter une API ? Quand préférer l'une ou l'autre ?"
+    reponse: |
+      - **Code-first** (springdoc) : la documentation OpenAPI est générée à partir du code existant. Elle reste synchronisée avec le comportement réel, mais le contrat n'existe qu'une fois le code écrit.
+      - **Contract-first** : un fichier OpenAPI est écrit à la main en premier, souvent négocié entre équipes, puis `openapi-generator` peut générer des squelettes de contrôleur ou des clients à partir de lui.
+      - Code-first convient à la majorité des projets où l'équipe qui code décide aussi de la forme de l'API. Contract-first est préférable quand le contrat doit être stable et validé avant tout développement (API publique, plusieurs équipes consommatrices en parallèle).
+    lecon: openapi
+
+  - id: ext-timeouts-pourquoi
+    niveau: confirme
+    theme: Résilience et timeouts
+    type: ouverte
+    question: "Pourquoi faut-il toujours configurer des timeouts sur un client HTTP appelant un service externe ? Où les configure-t-on avec RestClient ?"
+    reponse: |
+      - Sans timeout, un appel peut rester bloqué **indéfiniment** en attendant un service distant lent ou injoignable, ce qui peut finir par épuiser le pool de threads de l'application appelante : une panne externe se propage alors en panne interne.
+      - On distingue le **timeout de connexion** (établir la connexion TCP) et le **timeout de lecture** (recevoir la réponse une fois connecté).
+      - Avec `RestClient`, ils se configurent sur une `ClientHttpRequestFactory` (par exemple `SimpleClientHttpRequestFactory.setConnectTimeout(...)` / `setReadTimeout(...)`), passée au `RestClient.Builder` via `.requestFactory(...)`.
+    lecon: resilience-timeouts
+
+  - id: ext-retry-idempotence
+    niveau: senior
+    theme: Résilience et timeouts
+    type: qcm
+    question: "Une équipe ajoute `@Retryable(maxAttempts = 3)` sur une méthode qui envoie un POST de création de commande vers une API de paiement, sans autre précaution. Quel est le principal risque ?"
+    choix:
+      - "Aucun : @Retryable ne retente que les GET par défaut"
+      - "Si la première tentative a réussi côté serveur mais que la réponse s'est perdue, la reprise peut créer la commande plusieurs fois"
+      - "Le code ne compilera pas : @Retryable est réservé aux méthodes qui renvoient void"
+      - "La méthode ne sera retentée qu'en cas d'erreur 4xx"
+    reponse: 1
+    explication: "Une reprise automatique suppose que l'opération est idempotente. Un POST de création ne l'est pas par nature : sans clé d'idempotence côté serveur, retenter après un échec réseau (alors que le traitement a peut-être abouti) peut dupliquer l'effet. La règle : ne retenter que des opérations idempotentes, ou s'appuyer sur un mécanisme d'idempotence explicite."
+    lecon: resilience-timeouts

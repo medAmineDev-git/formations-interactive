@@ -1,0 +1,182 @@
+# Questions d'entretien Spring Boot — chapitre Data JPA
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: jpa-entite
+    niveau: junior
+    theme: Entités JPA
+    type: ouverte
+    question: "Qu'est-ce qu'une entité JPA ? Quelles sont les règles à respecter pour en écrire une ?"
+    reponse: |
+      Une entité est une classe annotée `@Entity` dont chaque instance correspond à une ligne d'une table.
+
+      - Un attribut annoté `@Id` (la clé primaire), souvent avec `@GeneratedValue` (`IDENTITY` ou `SEQUENCE`) pour que la valeur soit générée automatiquement.
+      - Un **constructeur sans argument** obligatoire (public ou protégé) : Hibernate l'utilise par réflexion.
+      - Ce n'est **pas** une classe `final`.
+      - Un `record` ne peut pas être une entité : il est immuable et n'a pas de constructeur sans argument.
+    lecon: entites-jpa
+
+  - id: jpa-ddl-auto
+    niveau: junior
+    theme: Entités JPA
+    type: qcm
+    question: "Quelle valeur de `spring.jpa.hibernate.ddl-auto` faut-il éviter absolument en production ?"
+    choix:
+      - "`none`"
+      - "`validate`"
+      - "`update`"
+      - "Aucune, toutes sont sans risque"
+    reponse: 2
+    explication: "`update` (comme `create` et `create-drop`) laisse Hibernate modifier le schéma de production automatiquement au démarrage, sans revue. En production, on utilise `validate` (ou `none`) avec un outil de migration comme Flyway ou Liquibase."
+    lecon: entites-jpa
+
+  - id: jpa-repository
+    niveau: junior
+    theme: Repositories
+    type: ouverte
+    question: "Comment créer un repository pour une entité `Produit` avec Spring Data JPA ? Faut-il en écrire l'implémentation ?"
+    reponse: |
+      Il suffit de déclarer une interface qui étend `JpaRepository<Produit, Long>` (le `Long` étant le type de l'identifiant) :
+
+      ```java
+      public interface ProduitRepository extends JpaRepository<Produit, Long> { }
+      ```
+
+      Aucune implémentation à écrire : Spring Data JPA génère un bean qui implémente l'interface au démarrage. Pas besoin non plus de `@Repository`.
+    lecon: repositories
+
+  - id: jpa-findbyid
+    niveau: junior
+    theme: Repositories
+    type: qcm
+    question: "Que renvoie `findById(id)` si aucune ligne ne correspond en base ?"
+    choix:
+      - "`null`"
+      - "Un `Optional` vide"
+      - "Une exception `EntityNotFoundException`"
+      - "Un objet avec tous les champs à `null`"
+    reponse: 1
+    explication: "`findById` renvoie toujours un `Optional<T>`, jamais `null`. On gère l'absence avec `orElseThrow(...)`, `orElse(...)` ou `map(...)`."
+    lecon: repositories
+
+  - id: jpa-requete-derivee
+    niveau: junior
+    theme: Requêtes dérivées
+    type: qcm
+    question: "Que se passe-t-il au démarrage si une méthode `findByNomProduit(...)` référence un attribut qui n'existe pas dans l'entité ?"
+    choix:
+      - "L'application démarre, l'erreur apparaît seulement au premier appel"
+      - "L'application échoue au démarrage avec une erreur du type « No property found »"
+      - "Spring Data ignore silencieusement la méthode"
+      - "Spring Data la corrige automatiquement vers l'attribut le plus proche"
+    reponse: 1
+    explication: "Spring Data valide chaque méthode dérivée à la création du repository, au démarrage. Une erreur de nom d'attribut est donc détectée immédiatement, pas au moment d'un appel en production."
+    lecon: requetes-derivees
+
+  # ---------- Confirmé ----------
+  - id: jpa-save
+    niveau: confirme
+    theme: Repositories
+    type: ouverte
+    question: "Que fait exactement `save(entite)` d'un `JpaRepository` ? Comment Spring Data décide-t-il d'insérer ou de mettre à jour ?"
+    reponse: |
+      `save` sert à la fois à créer et à modifier :
+
+      - Si l'identifiant de l'entité est `null` (ou absent en base), elle est considérée comme nouvelle : **insertion**.
+      - Si l'identifiant correspond déjà à une ligne existante, `save` effectue une **mise à jour** (un `merge` en interne).
+
+      Il n'y a donc pas de méthode séparée « créer » / « modifier » : le comportement dépend uniquement de l'état de l'identifiant au moment de l'appel.
+    lecon: repositories
+
+  - id: jpa-jpql-vs-sql
+    niveau: confirme
+    theme: Requêtes personnalisées
+    type: ouverte
+    question: "Quelle est la différence entre JPQL et le SQL natif dans `@Query` ? Quand utiliser l'un ou l'autre ?"
+    reponse: |
+      - **JPQL** interroge les **entités et leurs attributs Java** (`SELECT p FROM Produit p WHERE p.prix > :prixMin`), pas les tables ni colonnes SQL. C'est le mode par défaut de `@Query`, portable entre bases de données.
+      - **SQL natif** (`@Query(value = "...", nativeQuery = true)`) est du vrai SQL, contre les tables et colonnes réelles.
+
+      J'utilise JPQL pour la grande majorité des requêtes personnalisées, et le SQL natif seulement pour des fonctionnalités spécifiques à un SGBD ou des requêtes que JPQL ne sait pas exprimer, en acceptant la perte de portabilité.
+    lecon: query-jpql
+
+  - id: jpa-modifying
+    niveau: confirme
+    theme: Requêtes personnalisées
+    type: qcm
+    question: "Pourquoi cette méthode échoue-t-elle à l'exécution ?"
+    code: |
+      @Query("DELETE FROM Commande c WHERE c.statut = :statut")
+      int supprimerParStatut(@Param("statut") StatutCommande statut);
+    choix:
+      - "`DELETE` n'est pas un mot-clé JPQL valide"
+      - "Il manque `@Modifying` sur la méthode, et une transaction active pour l'exécuter"
+      - "Le paramètre `:statut` doit être positionnel"
+      - "Le type de retour devrait être `void`"
+    reponse: 1
+    explication: "Une méthode `@Query` est traitée comme un `SELECT` par défaut. Un `UPDATE` ou `DELETE` doit être annoté `@Modifying`, et exécuté dans une transaction active (typiquement via `@Transactional` sur la méthode ou le service appelant)."
+    lecon: query-jpql
+
+  - id: jpa-fetch-defaut
+    niveau: confirme
+    theme: Relations
+    type: ouverte
+    question: "Quel est le fetch type par défaut de chaque type de relation JPA ? Pourquoi est-ce important à connaître ?"
+    reponse: |
+      - `@ManyToOne` et `@OneToOne` : **EAGER** (chargement immédiat) par défaut.
+      - `@OneToMany` et `@ManyToMany` : **LAZY** (chargement différé, à la demande) par défaut.
+
+      C'est important car :
+      - Un `@ManyToOne` EAGER charge systématiquement l'entité liée, même quand elle n'est pas utile : cela peut coûter en performance, et on le passe souvent en `LAZY` explicitement.
+      - Une relation LAZY doit être accédée pendant que la session Hibernate est ouverte (typiquement dans une méthode `@Transactional`), sinon on obtient une `LazyInitializationException`.
+    lecon: relations
+
+  # ---------- Senior ----------
+  - id: jpa-cote-proprietaire
+    niveau: senior
+    theme: Relations
+    type: qcm
+    question: "Dans une relation bidirectionnelle `@OneToMany(mappedBy = \"commande\")` / `@ManyToOne`, que se passe-t-il si on ajoute une ligne uniquement du côté `@OneToMany`, sans mettre à jour le côté `@ManyToOne` ?"
+    code: |
+      commande.getLignes().add(nouvelleLigne); // sans nouvelleLigne.setCommande(commande)
+      commandeRepository.save(commande);
+    choix:
+      - "La ligne est correctement insérée et liée à la commande en base"
+      - "Une exception est levée immédiatement"
+      - "La collection Java contient la ligne, mais rien n'est écrit en base pour ce lien : le côté OneToMany n'est pas propriétaire"
+      - "Hibernate synchronise automatiquement les deux côtés au flush"
+    reponse: 2
+    explication: "Le côté `@ManyToOne` (ici sur `LigneCommande`) est le côté propriétaire de la relation : c'est lui qui porte la colonne de clé étrangère et dont l'état est réellement persisté. `mappedBy` indique que `@OneToMany` n'est qu'une vue en lecture, gérée en mémoire côté Java. Sans `ligne.setCommande(commande)`, la clé étrangère reste `null` en base. D'où l'intérêt d'une méthode utilitaire (`ajouterLigne`) qui synchronise les deux côtés."
+    lecon: relations
+
+  - id: jpa-lazyinit
+    niveau: senior
+    theme: Relations
+    type: ouverte
+    question: "Qu'est-ce qu'une `LazyInitializationException` ? Comment l'éviter proprement, sans tout passer en EAGER ?"
+    reponse: |
+      Elle survient quand on accède à une relation ou une collection **LAZY** après la fermeture de la session Hibernate — typiquement dans un contrôleur, après le retour du service, une fois la transaction terminée.
+
+      Solutions, en évitant de tout passer en `EAGER` (qui charge des données inutiles dans la majorité des cas) :
+      - Accéder à la relation **pendant que la transaction est encore ouverte**, dans le service (méthode `@Transactional`).
+      - Écrire une requête dédiée (`@Query` avec un `JOIN FETCH`, ou une projection) qui charge exactement ce qu'il faut en une seule requête.
+      - Construire directement un DTO dans le service, pendant que la session est ouverte, plutôt que de renvoyer l'entité et d'accéder à ses relations plus tard.
+    explication: "Le point qui fait la différence en entretien : ne pas répondre « il suffit de mettre EAGER partout », qui déplace le problème vers des chargements inutiles et prépare un problème N+1 (traité en détail dans le chapitre JPA avancé)."
+    lecon: relations
+
+  - id: jpa-dto-api
+    niveau: senior
+    theme: Relations
+    type: ouverte
+    question: "Pourquoi est-il déconseillé de renvoyer directement une entité JPA depuis un contrôleur REST ?"
+    reponse: |
+      - **Boucle infinie de sérialisation** : une relation bidirectionnelle (`Commande` ↔ `LigneCommande`) peut faire boucler Jackson indéfiniment (`StackOverflowError`).
+      - **Fuite de données** : l'entité expose souvent plus de champs que nécessaire pour l'API (données internes, relations non pertinentes pour le client).
+      - **Couplage entre le modèle de données et le contrat d'API** : modifier l'entité (ajout d'une colonne, renommage) modifie silencieusement la réponse HTTP.
+      - **Risque de `LazyInitializationException`** si une relation LAZY est sérialisée hors de la session Hibernate.
+
+      La bonne pratique est de convertir l'entité vers un **DTO** (souvent un `record`) dans la couche service ou contrôleur, avec uniquement les champs utiles au client.
+    lecon: relations

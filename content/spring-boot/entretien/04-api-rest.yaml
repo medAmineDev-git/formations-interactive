@@ -1,0 +1,175 @@
+questions:
+  # ---------- Junior ----------
+  - id: api-restcontroller
+    niveau: junior
+    theme: Contrôleurs REST
+    type: qcm
+    question: "Que fait `@RestController` que `@Controller` seul ne fait pas ?"
+    choix:
+      - "Il active le component scan"
+      - "Il ajoute `@ResponseBody` : les retours des méthodes sont écrits directement dans le corps de la réponse (JSON), au lieu d'être interprétés comme un nom de vue"
+      - "Il active automatiquement la validation"
+      - "Il rend le contrôleur singleton"
+    reponse: 1
+    explication: "`@RestController` = `@Controller` + `@ResponseBody`. Sans `@ResponseBody`, Spring MVC cherche une vue portant le nom de la chaîne retournée."
+    lecon: rest-controller
+
+  - id: api-verbes-http
+    niveau: junior
+    theme: Contrôleurs REST
+    type: ouverte
+    question: "Quelle différence entre `PUT` et `PATCH` ? Lequel est idempotent ?"
+    reponse: |
+      - **PUT** remplace **entièrement** la ressource par le contenu envoyé.
+      - **PATCH** modifie **partiellement** la ressource (seulement les champs fournis).
+      - `PUT` est idempotent : appliquer plusieurs fois le même `PUT` produit le même état final. `PATCH` n'est pas garanti idempotent, cela dépend de l'opération décrite (un `PATCH` qui incrémente une valeur ne l'est pas).
+    lecon: rest-controller
+
+  - id: api-pathvariable-requestparam
+    niveau: junior
+    theme: Lire la requête
+    type: qcm
+    question: "Pour l'URL `GET /commandes/12/lignes?statut=EN_ATTENTE`, quelles annotations utiliser ?"
+    choix:
+      - "`@RequestParam` pour `12`, `@PathVariable` pour `statut`"
+      - "`@PathVariable` pour `12`, `@RequestParam` pour `statut`"
+      - "`@RequestBody` pour les deux"
+      - "`@PathVariable` pour les deux"
+    reponse: 1
+    explication: "`12` fait partie du chemin de l'URL (identifie la commande) : `@PathVariable`. `statut` est un paramètre de filtrage après le `?` : `@RequestParam`."
+    lecon: parametres-requete
+
+  - id: api-requestbody-record
+    niveau: junior
+    theme: Lire la requête
+    type: ouverte
+    question: "Pourquoi utilise-t-on souvent un record comme type pour `@RequestBody` plutôt que l'entité JPA directement ?"
+    reponse: |
+      - Le record fait office de **DTO** (Data Transfer Object) : il ne transporte que les champs attendus en entrée, sans exposer la structure interne de l'entité (relations JPA, champs techniques comme la version ou les dates d'audit).
+      - Il évite les soucis de désérialisation liés aux entités JPA (proxies, relations paresseuses).
+      - Un record est immuable, concis, et Jackson sait le désérialiser nativement via son constructeur canonique.
+      - Cela découple le contrat de l'API du modèle de données, qui peut évoluer indépendamment.
+    lecon: parametres-requete
+
+  - id: api-codes-http
+    niveau: junior
+    theme: Réponses HTTP
+    type: qcm
+    question: "Quel code HTTP renvoyer après une création de ressource réussie via `POST` ?"
+    choix:
+      - "200 OK"
+      - "201 Created"
+      - "204 No Content"
+      - "202 Accepted"
+    reponse: 1
+    explication: "201 signale qu'une nouvelle ressource a été créée. Par convention, la réponse inclut aussi l'en-tête `Location` pointant vers cette ressource."
+    lecon: response-entity
+
+  # ---------- Confirmé ----------
+  - id: api-validation-starter
+    niveau: confirme
+    theme: Validation
+    type: ouverte
+    question: "Comment valider automatiquement le corps d'une requête entrante ? Quels pièges faut-il connaître ?"
+    reponse: |
+      - Ajouter la dépendance **`spring-boot-starter-validation`** : elle n'est plus incluse par défaut dans `spring-boot-starter-web` depuis Spring Boot 2.3.
+      - Annoter le DTO avec les contraintes Bean Validation (`@NotBlank`, `@Positive`, `@Size`…).
+      - Ajouter **`@Valid`** devant le paramètre `@RequestBody` du contrôleur.
+      - Une violation lève une `MethodArgumentNotValidException`, traduite automatiquement en **400 Bad Request**.
+
+      Pièges : sans le starter, les annotations sont **silencieusement ignorées** ; sans `@Valid`, la validation ne se déclenche jamais ; la validation ne descend pas automatiquement dans un objet imbriqué, il faut répéter `@Valid` sur ce champ.
+    lecon: validation
+
+  - id: api-notblank-vs-notempty
+    niveau: confirme
+    theme: Validation
+    type: qcm
+    question: "Quelle annotation refuse à la fois `null`, `\"\"` et `\"   \"` pour un champ `String` ?"
+    choix:
+      - "`@NotNull`"
+      - "`@NotEmpty`"
+      - "`@NotBlank`"
+      - "`@Size(min = 1)`"
+    reponse: 2
+    explication: "`@NotNull` laisse passer une chaîne vide. `@NotEmpty` laisse passer une chaîne composée uniquement d'espaces. Seul `@NotBlank` rejette les trois cas."
+    lecon: validation
+
+  - id: api-exceptionhandler-advice
+    niveau: confirme
+    theme: Gestion des erreurs
+    type: ouverte
+    question: "Quelle différence entre un `@ExceptionHandler` dans un contrôleur et un `@RestControllerAdvice` ?"
+    reponse: |
+      - Un `@ExceptionHandler` défini **dans un contrôleur** ne s'applique qu'aux exceptions levées par ce contrôleur.
+      - `@RestControllerAdvice` (`@ControllerAdvice` + `@ResponseBody`) regroupe des `@ExceptionHandler` qui s'appliquent à **tous les contrôleurs** de l'application : cela évite de dupliquer la même gestion d'erreur partout.
+
+      En pratique, on centralise les erreurs transverses (validation, exceptions métier communes) dans un `@RestControllerAdvice`, et on garde un `@ExceptionHandler` local seulement pour un cas vraiment spécifique à un contrôleur.
+    lecon: gestion-erreurs
+
+  - id: api-responseentity-vs-return
+    niveau: confirme
+    theme: Réponses HTTP
+    type: qcm
+    question: "Pourquoi préférer `ResponseEntity<Produit>` à un simple retour `Produit` quand la ressource peut être absente ?"
+    code: |
+      @GetMapping("/{id}")
+      public Produit get(@PathVariable Long id) {
+          return service.trouver(id).orElseThrow();
+      }
+    choix:
+      - "Les deux se comportent exactement pareil"
+      - "`ResponseEntity` permet de renvoyer explicitement un 404 (via `notFound().build()`) au lieu de laisser une exception non gérée remonter en 500"
+      - "`Produit` ne peut pas être sérialisé en JSON sans `ResponseEntity`"
+      - "`ResponseEntity` est obligatoire dès qu'on utilise `@RestController`"
+    reponse: 1
+    explication: "Un simple retour d'objet est toujours 200 s'il n'y a pas d'exception ; ici, `orElseThrow()` sans exception personnalisée lève une `NoSuchElementException` non gérée par défaut, donc 500. `ResponseEntity` (ou une exception métier traduite en 404) exprime clairement l'absence de la ressource."
+    lecon: response-entity
+
+  # ---------- Senior ----------
+  - id: api-problemdetail
+    niveau: senior
+    theme: Gestion des erreurs
+    type: ouverte
+    question: "Qu'apporte `ProblemDetail` par rapport à un format d'erreur maison ? Comment l'activer pour les erreurs internes de Spring MVC ?"
+    reponse: |
+      `ProblemDetail` (Spring Framework 6) implémente la **RFC 9457** (*Problem Details for HTTP APIs*) : un format standard et interopérable pour les erreurs d'API, avec des champs normalisés (`type`, `title`, `status`, `detail`, `instance`), extensible avec des champs propres à l'application.
+
+      - On peut le construire soi-même dans un `@ExceptionHandler` : `ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "...")`.
+      - La propriété **`spring.mvc.problemdetails.enabled=true`** active la production de réponses `ProblemDetail` (`application/problem+json`) pour les exceptions que Spring MVC gère lui-même en interne (erreurs de désérialisation, de validation…), sans avoir à écrire de gestionnaire pour chacune.
+
+      Intérêt en architecture : des clients variés (autres équipes, autres langages) peuvent traiter les erreurs de façon uniforme, sans connaître un format maison propre à chaque API.
+    lecon: gestion-erreurs
+
+  - id: api-validation-parametres
+    niveau: senior
+    theme: Validation
+    type: qcm
+    question: "Un `@RequestParam @Min(1) int page` reçoit `page=0`. Que se passe-t-il avec Spring Framework 6.1+ ?"
+    code: |
+      @GetMapping("/produits")
+      public List<Produit> lister(@RequestParam @Min(1) int page) {
+          return service.lister(page);
+      }
+    choix:
+      - "Rien : les contraintes sur `@RequestParam` ne sont jamais vérifiées"
+      - "500, car la validation de paramètre nécessite obligatoirement `@Validated` sur la classe"
+      - "400 Bad Request : une `HandlerMethodValidationException` est levée automatiquement, sans configuration supplémentaire"
+      - "La méthode s'exécute avec `page = 1` (valeur minimale forcée)"
+    reponse: 2
+    explication: "Depuis Spring Framework 6.1 (Spring Boot 3.2), Spring MVC valide nativement les `@RequestParam`/`@PathVariable` porteurs d'une contrainte et traduit l'échec en 400 via `HandlerMethodValidationException`, sans avoir besoin de `@Validated` sur la classe (nécessaire avant cette version)."
+    lecon: validation
+
+  - id: api-securite-erreurs
+    niveau: senior
+    theme: Gestion des erreurs
+    type: ouverte
+    question: "Quels risques y a-t-il à laisser la réponse d'erreur par défaut de Spring Boot exposer trop d'informations ? Comment les maîtriser ?"
+    reponse: |
+      Le endpoint `/error` par défaut (`BasicErrorController`) renvoie `timestamp`, `status`, `error`, `path`. Le message détaillé et la pile d'appel ne sont pas inclus par défaut, justement pour éviter d'exposer des détails internes (noms de classes, requêtes SQL, chemins de fichiers) qui pourraient aider un attaquant à cartographier l'application.
+
+      Bonnes pratiques :
+      - Ne jamais renvoyer directement `ex.getMessage()` ou la pile d'appel d'une exception **technique** au client.
+      - Journaliser le détail complet côté serveur (`logger.error(...)`) pour le diagnostic.
+      - Centraliser un gestionnaire de dernier recours (`@ExceptionHandler(Exception.class)`) qui renvoie un message générique et un code 500, plutôt que de laisser fuir des messages différents selon l'exception rencontrée.
+      - Pour les exceptions métier, contrôler précisément le message renvoyé (il est conçu pour être vu par le client).
+    lecon: gestion-erreurs

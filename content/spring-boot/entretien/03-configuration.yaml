@@ -1,0 +1,123 @@
+# Questions d'entretien Spring Boot — chapitre Configuration
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: conf-properties-yaml
+    niveau: junior
+    theme: Fichiers de configuration
+    type: ouverte
+    question: "Quelle est la différence entre application.properties et application.yml ?"
+    reponse: |
+      - Deux **syntaxes** pour les mêmes propriétés à points : `.properties` en `clé=valeur`, une ligne par propriété ; `.yml` en arborescence indentée (format YAML).
+      - `server.port=8081` en `.properties` équivaut à `server:` puis `port: 8081` indenté en `.yml`.
+      - YAML évite de répéter les préfixes communs (`spring.datasource.*` devient `spring: datasource:`) et permet plusieurs profils dans un seul fichier.
+      - Les deux sont chargés depuis `src/main/resources` par défaut ; un seul suffit en général.
+    explication: "Bonus en entretien : mentionner qu'un fichier de configuration externe, à côté du jar, prend le pas sur celui packagé à l'intérieur."
+    lecon: properties-yaml
+
+  - id: conf-priorite-sources
+    niveau: junior
+    theme: Fichiers de configuration
+    type: qcm
+    question: "Une propriété server.port est définie à la fois dans application.properties (8080) et via la variable d'environnement SERVER_PORT (9090). Sur quel port l'application démarre-t-elle ?"
+    choix:
+      - "8080, le fichier de configuration a toujours priorité"
+      - "9090, la variable d'environnement passe avant le fichier de configuration"
+      - "Une erreur au démarrage : conflit entre deux sources"
+      - "Le port par défaut 8080, les deux sources s'annulent"
+    reponse: 1
+    explication: "Ordre simplifié : arguments de ligne de commande > variables d'environnement > fichiers de configuration. `SERVER_PORT` est reconnue automatiquement comme équivalent de `server.port`."
+    lecon: properties-yaml
+
+  - id: conf-value-defaut
+    niveau: junior
+    theme: "@Value"
+    type: qcm
+    question: "Que se passe-t-il au démarrage si @Value(\"${app.nom}\") référence une propriété absente, sans valeur par défaut ?"
+    choix:
+      - "Le champ reste à null, sans erreur"
+      - "Le démarrage échoue avec « Could not resolve placeholder »"
+      - "Le champ vaut la chaîne littérale \"${app.nom}\""
+      - "Spring cherche automatiquement une propriété de repli dans un autre fichier"
+    reponse: 1
+    explication: "Sans `:defaut`, `@Value` exige que la propriété existe. C'est volontaire : mieux vaut un échec explicite au démarrage qu'un champ silencieusement vide en production."
+    lecon: value-injection
+
+  - id: conf-value-vs-configurationproperties
+    niveau: confirme
+    theme: "@Value vs @ConfigurationProperties"
+    type: ouverte
+    question: "Quand préférer @ConfigurationProperties à @Value ?"
+    reponse: |
+      - Dès qu'un **groupe** de propriétés liées existe (préfixe commun, ex. `app.mail.*`) plutôt qu'une valeur isolée.
+      - `@ConfigurationProperties` lie tout un objet (classe ou `record`) d'un coup, avec objets imbriqués, listes et maps nativement, alors qu'il faudrait un `@Value` par propriété.
+      - Elle apporte la **validation** intégrée avec `@Validated` (`@NotBlank`, `@Min`…), ce que `@Value` ne propose pas.
+      - Elle profite du **relaxed binding** complet et, avec `spring-boot-configuration-processor`, de l'autocomplétion dans l'IDE.
+      - `@Value` reste adapté à une propriété isolée, ponctuelle, ou à une expression SpEL — ce que `@ConfigurationProperties` ne fait pas.
+    lecon: configuration-properties
+
+  - id: conf-record-configuration-properties
+    niveau: confirme
+    theme: "@ConfigurationProperties"
+    type: qcm
+    question: "Une classe @ConfigurationProperties doit-elle obligatoirement être annotée @Component pour devenir un bean ?"
+    code: |
+      @ConfigurationProperties(prefix = "app.mail")
+      public record MailProperties(String hote, int port) { }
+    choix:
+      - "Oui, sans exception"
+      - "Non : @EnableConfigurationProperties(MailProperties.class) ou @ConfigurationPropertiesScan sur la classe principale l'enregistrent aussi comme bean"
+      - "Non, un record avec @ConfigurationProperties devient automatiquement un bean sans rien ajouter ailleurs"
+      - "Non, il suffit d'ajouter @Value sur chaque composant du record"
+    reponse: 1
+    explication: "`@Component` est une des trois façons d'enregistrer la classe comme bean, pas la seule : `@EnableConfigurationProperties` (enregistrement explicite sur une classe `@Configuration`) et `@ConfigurationPropertiesScan` (scan automatique, une fois pour tout le projet) sont les deux autres. Sans aucune des trois, la classe n'est pas un bean et rien ne l'injecte."
+    lecon: configuration-properties
+
+  - id: conf-profils-default
+    niveau: confirme
+    theme: Profils
+    type: ouverte
+    question: "Comment fonctionnent les profils Spring (dev, test, prod) et que se passe-t-il si aucun n'est activé explicitement ?"
+    reponse: |
+      - `spring.profiles.active` active un ou plusieurs profils (ligne de commande, variable d'environnement `SPRING_PROFILES_ACTIVE`, ou fichier).
+      - Un fichier `application-{profil}.yml` est alors chargé **en plus** d'`application.yml` et surcharge ses valeurs communes.
+      - `@Profile("nom")` sur un bean (ou une méthode `@Bean`) restreint sa création à ce profil ; `@Profile("!nom")` l'exclut.
+      - **Sans profil actif**, le profil implicite `default` s'applique. C'est un piège classique : un bean `@Profile("!prod")` (données de test, service simulé) reste actif si `prod` n'a pas été explicitement positionné en production.
+    explication: "Le point qui fait la différence en entretien : bien insister sur le profil `default` implicite et le risque en production si `spring.profiles.active=prod` est oublié au déploiement."
+    lecon: profils
+
+  - id: conf-profils-multidoc-yaml
+    niveau: senior
+    theme: Profils
+    type: qcm
+    question: "Depuis Spring Boot 2.4, comment activer un document YAML uniquement pour le profil prod, dans un fichier application.yml unique découpé avec --- ?"
+    code: |
+      spring:
+        config:
+          activate:
+            on-profile: prod
+      logging:
+        level:
+          root: WARN
+    choix:
+      - "spring.profiles: prod, dans le document"
+      - "spring.config.activate.on-profile: prod, comme dans l'exemple ci-dessus"
+      - "Un commentaire # profile: prod en tête du document"
+      - "Il faut nécessairement un fichier application-prod.yml séparé, les documents multiples ne supportent pas les profils"
+    reponse: 1
+    explication: "`spring.config.activate.on-profile` est la syntaxe introduite en 2.4 pour activer un document d'un fichier YAML multi-documents selon le profil actif. L'ancienne syntaxe `spring.profiles: prod` est dépréciée au profit de celle-ci."
+    lecon: profils
+
+  - id: conf-secrets-profils
+    niveau: senior
+    theme: Configuration et sécurité
+    type: ouverte
+    question: "Comment gérer les secrets (mots de passe de base de données, clés d'API) entre les différents environnements sans les exposer dans le dépôt Git ?"
+    reponse: |
+      - Ne **jamais commiter** un secret en clair, même dans un fichier de profil comme `application-prod.yml`.
+      - Référencer le secret par un placeholder dans la configuration versionnée : `spring.datasource.password=${DB_PASSWORD}`.
+      - Fournir la vraie valeur au déploiement, via une **variable d'environnement** (`DB_PASSWORD=...`), un gestionnaire de secrets (Vault, AWS Secrets Manager…), ou un fichier de configuration externe non versionné.
+      - Rappel : les arguments de ligne de commande et les variables d'environnement sont plus prioritaires que les fichiers de configuration, ce qui permet justement de les substituer proprement à un placeholder par défaut.
+    lecon: profils

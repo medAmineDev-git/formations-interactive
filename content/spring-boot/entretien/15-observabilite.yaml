@@ -1,0 +1,76 @@
+# Questions d'entretien Spring Boot
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: obs-actuator-exposition
+    niveau: confirme
+    theme: Actuator
+    type: ouverte
+    question: "Par défaut, seul `/actuator/health` est exposé en HTTP dans une application Spring Boot. Pourquoi ce choix, et comment exposer et sécuriser les autres endpoints en production ?"
+    reponse: |
+      - Par défaut, un seul endpoint HTTP (`health`) est exposé : les autres (`env`, `beans`, `metrics`…) peuvent révéler des informations sensibles ou coûteuses à calculer, donc Spring Boot choisit la prudence plutôt que tout ouvrir par défaut.
+      - Pour exposer davantage : `management.endpoints.web.exposure.include` (liste explicite, ou `*`).
+      - Exposer n'est pas sécuriser : `management.endpoints.web.exposure.include` contrôle la **visibilité**, pas les **droits d'accès**. En production, on combine l'exposition sélective avec Spring Security (`EndpointRequest.toAnyEndpoint()`), et souvent un port de management séparé (`management.server.port`) réservé au réseau interne.
+      - `management.endpoint.health.show-details` (`never` par défaut) évite de révéler le détail de chaque indicateur de santé à un appelant non authentifié.
+    explication: "Le point qui distingue un candidat expérimenté : bien séparer « exposition » et « sécurisation », deux préoccupations orthogonales dans Actuator."
+    lecon: actuator
+
+  - id: obs-health-groups
+    niveau: confirme
+    theme: Actuator
+    type: qcm
+    question: "Dans un déploiement Kubernetes, à quoi servent respectivement la sonde `liveness` et la sonde `readiness` exposées par Actuator ?"
+    choix:
+      - "`liveness` vérifie que l'application répond aux requêtes métier, `readiness` vérifie que le processus tourne"
+      - "`liveness` indique si le processus fonctionne correctement (sinon Kubernetes le redémarre), `readiness` indique s'il est prêt à recevoir du trafic (sinon Kubernetes cesse de lui en envoyer sans le redémarrer)"
+      - "Les deux sondes sont strictement équivalentes, seul le nom du endpoint change"
+      - "`liveness` et `readiness` ne concernent que la base de données"
+    reponse: 1
+    explication: "Confondre les deux est une erreur fréquente : une `readiness` en échec ne doit pas déclencher de redémarrage (le pod peut juste être temporairement surchargé ou en attente d'une dépendance), alors qu'une `liveness` en échec signale un processus qui ne se rétablira pas seul."
+    lecon: actuator
+
+  - id: obs-cardinalite-metriques
+    niveau: senior
+    theme: Métriques
+    type: ouverte
+    question: "Qu'est-ce que la cardinalité d'une métrique Micrometer, et pourquoi faut-il s'en méfier avec les tags ?"
+    reponse: |
+      - Chaque combinaison unique de tags sur une métrique crée une **série temporelle distincte** dans le backend (Prometheus, etc.).
+      - Un tag qui prend un grand nombre de valeurs possibles (identifiant de commande, e-mail, UUID) fait exploser le nombre de séries : consommation mémoire et stockage du backend en forte hausse, requêtes de visualisation ralenties, voire facture qui explose sur un SaaS de métriques facturé à la série.
+      - Un bon tag décrit une **catégorie bornée** : méthode HTTP, code de statut, type de canal, nom d'environnement — pas une donnée métier unique par événement.
+      - L'identifiant unique a sa place dans un log ou dans un span de tracing (où il ne crée pas de nouvelle série), pas dans un tag de métrique.
+    explication: "Question classique pour vérifier qu'un candidat a déjà été confronté à un vrai incident de production lié aux métriques, pas seulement à la théorie de l'API Micrometer."
+    lecon: metriques-micrometer
+
+  - id: obs-gauge-piege
+    niveau: senior
+    theme: Métriques
+    type: qcm
+    question: "Pourquoi ce code produit-il une `Gauge` qui n'évolue jamais ?"
+    code: |
+      int tailleFile = fileAttente.taille();
+      Gauge.builder("file.taille", tailleFile, t -> t).register(registry);
+    choix:
+      - "`Gauge.builder` ne fonctionne qu'avec des `Counter` en argument"
+      - "La valeur `tailleFile` est un `int` déjà évalué au moment de l'appel : la fonction referme sur une copie figée, pas sur l'état vivant de la file"
+      - "Il manque l'appel à `.increment()` après `.register(registry)`"
+      - "Les `Gauge` ne peuvent contenir que des `double` en Java"
+    reponse: 1
+    explication: "Une `Gauge` Micrometer relit sa valeur en appliquant la fonction fournie à l'objet passé en second argument. Ici, l'objet est un `int` déjà calculé, donc la fonction renvoie toujours la même chose. La correction consiste à passer l'objet porteur de l'état (`fileAttente`) et une méthode qui lit son état réel à chaque interrogation, ex. `Gauge.builder(\"file.taille\", fileAttente, FileAttente::taille)`."
+    lecon: metriques-micrometer
+
+  - id: obs-tracing-sleuth
+    niveau: senior
+    theme: Tracing distribué
+    type: ouverte
+    question: "Spring Cloud Sleuth a été remplacé par quoi dans Spring Boot 3 ? Comment un `traceId` circule-t-il entre plusieurs microservices, et comment le relier aux logs de chaque service ?"
+    reponse: |
+      - **Micrometer Tracing** remplace Spring Cloud Sleuth à partir de Spring Boot 3.
+      - Chaque requête entrante ou sortante est instrumentée automatiquement (filtres MVC, client HTTP) ; un `traceId` identifie le parcours complet, un `spanId` identifie chaque étape.
+      - La propagation entre services passe par l'en-tête HTTP standard **`traceparent`** (spécification W3C Trace Context) : le service appelé lit cet en-tête et rattache ses propres spans à la même trace plutôt que d'en démarrer une nouvelle.
+      - L'export vers un backend de visualisation (Zipkin via un bridge Brave, ou tout backend compatible OpenTelemetry via un bridge OTel) se fait sur un échantillon des requêtes, réglable avec `management.tracing.sampling.probability`.
+      - Côté logs, Micrometer Tracing place `traceId` et `spanId` dans le MDC pendant la durée du span : en les incluant dans le pattern de log (ou dans un log structuré JSON), on peut retrouver toutes les lignes de tous les services concernés par une même requête avec une simple recherche sur le `traceId`.
+    explication: "Un bon candidat senior sait dire explicitement que Sleuth est terminé depuis Boot 3, cite le nom W3C de l'en-tête de propagation, et relie spontanément tracing et corrélation de logs — c'est souvent le vrai objectif métier derrière la question."
+    lecon: logs-tracing

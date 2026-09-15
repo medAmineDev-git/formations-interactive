@@ -1,0 +1,143 @@
+# Questions d'entretien Spring Boot — chapitre Tests
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: test-starter
+    niveau: junior
+    theme: Tests unitaires
+    type: qcm
+    question: "Que contient `spring-boot-starter-test` ?"
+    choix:
+      - "Uniquement JUnit"
+      - "JUnit Jupiter, AssertJ, Mockito, Hamcrest, JSONassert et JsonPath"
+      - "Uniquement Mockito et Selenium"
+      - "Un serveur de test intégré et une base de données H2"
+    reponse: 1
+    explication: "Un seul starter regroupe tout l'outillage de test courant : JUnit 5 pour exécuter les tests, AssertJ pour les assertions, Mockito pour les mocks, Hamcrest, JSONassert et JsonPath pour comparer/naviguer du JSON."
+    lecon: junit-mockito
+
+  - id: test-mock-injectmocks
+    niveau: junior
+    theme: Tests unitaires
+    type: ouverte
+    question: "À quoi servent `@Mock` et `@InjectMocks` avec `@ExtendWith(MockitoExtension.class)` ?"
+    reponse: |
+      - `@Mock` crée un **mock** (objet simulé) pour le champ annoté : on configure ses réponses avec `when(...).thenReturn(...)` et on vérifie ses appels avec `verify(...)`.
+      - `@InjectMocks` crée une **vraie instance** de la classe testée et lui injecte automatiquement les champs `@Mock` déclarés dans la classe de test, en général via son constructeur.
+      - `@ExtendWith(MockitoExtension.class)` est nécessaire pour que Mockito initialise ces champs ; sans elle, ils restent `null`.
+    lecon: junit-mockito
+
+  - id: test-mockmvc
+    niveau: junior
+    theme: Tests de contrôleurs
+    type: qcm
+    question: "Que fait `mockMvc.perform(get(\"/produits/1\"))` ?"
+    choix:
+      - "Il ouvre un vrai serveur HTTP sur un port aléatoire"
+      - "Il simule une requête GET envoyée au contrôleur, sans démarrer de serveur réel"
+      - "Il interroge directement la base de données"
+      - "Il appelle la méthode Java du contrôleur sans passer par Spring MVC"
+    reponse: 1
+    explication: "`MockMvc` simule la chaîne HTTP (désérialisation, validation, sérialisation JSON) sans ouvrir de port réseau. C'est plus rapide qu'un vrai appel via `TestRestTemplate` et suffisant pour la grande majorité des tests de contrôleur."
+    lecon: web-mvc-test
+
+  # ---------- Confirmé ----------
+  - id: test-springboottest-vs-unitaire
+    niveau: confirme
+    theme: Tests d'intégration
+    type: ouverte
+    question: "Quelle différence entre un test unitaire et un test `@SpringBootTest` ? Quand utiliser l'un ou l'autre ?"
+    reponse: |
+      - **Test unitaire** : teste une classe isolée, créée avec `new` et des mocks pour ses dépendances. Aucun contexte Spring : très rapide.
+      - **`@SpringBootTest`** : démarre le vrai contexte Spring, avec tous ses beans assemblés. Vérifie l'intégration réelle (câblage des beans, configuration, requêtes générées…), mais nettement plus lent.
+
+      En pratique : beaucoup de tests unitaires pour la logique métier, quelques tests `@SpringBootTest` (ou test slices comme `@WebMvcTest`) pour vérifier que tout s'assemble correctement.
+    lecon: spring-boot-test
+
+  - id: test-mockitobean
+    niveau: confirme
+    theme: Tests d'intégration
+    type: qcm
+    question: "Depuis Spring Boot 3.4 / Spring Framework 6.2, quelle annotation remplace `@MockBean` pour remplacer un bean par un mock dans un test ?"
+    choix:
+      - "`@Mock`"
+      - "`@MockitoBean`"
+      - "`@Fake`"
+      - "`@TestBean` uniquement"
+    reponse: 1
+    explication: "`@MockitoBean` (package `org.springframework.test.context.bean.override.mockito`) remplace `@MockBean`, désormais dépréciée. Le principe ne change pas : le bean du contexte est remplacé par un mock pour la durée du test. `@MockBean` reste très présente dans les projets existants qui n'ont pas encore migré."
+    lecon: spring-boot-test
+
+  - id: test-webmvctest-mockitobean
+    niveau: confirme
+    theme: Tests de contrôleurs
+    type: ouverte
+    question: "Pourquoi faut-il presque toujours ajouter `@MockitoBean` dans un test `@WebMvcTest` ?"
+    reponse: |
+      `@WebMvcTest` est un **test slice** : il ne charge que la couche web (contrôleurs, configuration MVC), pas les beans `@Service` ni `@Repository`. Si le contrôleur testé dépend d'un service par injection de constructeur, ce service n'existe pas dans ce contexte réduit : le démarrage échoue avec une erreur de bean manquant.
+
+      `@MockitoBean` fournit un mock de ce service au contexte, ce qui permet à la fois de satisfaire l'injection et de contrôler précisément son comportement (`when(...).thenReturn(...)`) pour chaque scénario testé.
+    lecon: web-mvc-test
+
+  - id: test-choix-slice
+    niveau: confirme
+    theme: Tests de contrôleurs
+    type: qcm
+    question: "Pour vérifier qu'une requête POST avec un champ obligatoire manquant renvoie un statut 400, quel type de test est le plus adapté ?"
+    choix:
+      - "Un test unitaire pur du contrôleur, instancié avec `new`"
+      - "`@WebMvcTest` : la validation Bean Validation et la conversion en réponse HTTP font partie de la couche web testée par ce slice"
+      - "`@DataJpaTest`"
+      - "Uniquement un test manuel avec Postman"
+    reponse: 1
+    explication: "La validation (`@Valid`) et la gestion des erreurs (`@ExceptionHandler`) sont exécutées par la vraie mécanique Spring MVC, chargée par `@WebMvcTest`. Un test unitaire du contrôleur seul n'active pas cette chaîne ; `@SpringBootTest` fonctionnerait aussi mais chargerait inutilement le reste de l'application."
+    lecon: web-mvc-test
+
+  # ---------- Senior ----------
+  - id: test-cache-contexte
+    niveau: senior
+    theme: Tests d'intégration
+    type: ouverte
+    question: "Comment Spring accélère-t-il l'exécution de plusieurs classes `@SpringBootTest` ? Qu'est-ce qui casse cette optimisation ?"
+    reponse: |
+      Spring met en **cache le contexte** démarré : si deux classes de test demandent une configuration strictement identique (mêmes annotations, profils actifs, propriétés, beans remplacés par `@MockitoBean`…), le second test réutilise le contexte déjà chargé au lieu d'en recréer un.
+
+      Ce qui invalide le cache et force un redémarrage complet :
+      - Un `@MockitoBean` différent (ou sur un bean différent) d'une classe à l'autre.
+      - Un `@ActiveProfiles` différent.
+      - Des propriétés différentes (`@TestPropertySource`, `@SpringBootTest(properties = ...)`).
+
+      Conséquence pratique en entretien : regrouper les classes de test qui partagent la même configuration, et éviter de faire varier `@MockitoBean`/profils sans raison, pour garder une suite de tests rapide.
+    lecon: spring-boot-test
+
+  - id: test-transactional-rollback
+    niveau: senior
+    theme: Tests d'intégration
+    type: qcm
+    question: "Une classe de test `@SpringBootTest` est annotée `@Transactional`. Un test insère une commande avec `repository.save(...)` puis échoue sur une assertion. Que devient cette commande en base après le test ?"
+    choix:
+      - "Elle reste en base, car seuls les tests réussis déclenchent un rollback"
+      - "Elle est annulée (rollback), que le test réussisse ou échoue"
+      - "Elle reste en base uniquement si le test a échoué"
+      - "Cela dépend du `webEnvironment` configuré"
+    reponse: 1
+    explication: "`@Transactional` sur une classe ou une méthode de test ouvre une transaction avant le test et l'annule systématiquement à la fin, indépendamment du résultat du test (succès ou échec). C'est ce qui garantit l'isolation entre les tests d'une même suite, sans nettoyage manuel de la base."
+    lecon: spring-boot-test
+
+  - id: test-pyramide
+    niveau: senior
+    theme: Stratégie de tests
+    type: ouverte
+    question: "Comment répartiriez-vous les tests d'une application Spring Boot entre tests unitaires, test slices (`@WebMvcTest`) et `@SpringBootTest` ?"
+    reponse: |
+      L'idée est une **pyramide** : beaucoup de tests rapides à la base, peu de tests lents au sommet.
+
+      - **Tests unitaires** (majorité) : logique métier des services, cas limites, gestion d'erreurs — avec des mocks, sans Spring. Rapides, faciles à faire évoluer.
+      - **Test slices** (`@WebMvcTest`, et `@DataJpaTest` vu au niveau intermédiaire) : vérifient qu'une couche précise s'intègre bien avec Spring (routage, JSON, validation pour le web ; requêtes générées pour JPA), sans charger toute l'application.
+      - **`@SpringBootTest`** (minorité) : quelques scénarios bout-en-bout qui vérifient que l'ensemble démarre et collabore correctement — les plus représentatifs des parcours utilisateur critiques.
+
+      Une suite qui n'utilise que `@SpringBootTest` pour tout devient lente à mesure que le projet grossit ; une suite qui n'a que des tests unitaires peut rater des erreurs de câblage ou de configuration.
+    lecon: spring-boot-test

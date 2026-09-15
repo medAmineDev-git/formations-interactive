@@ -1,0 +1,119 @@
+# Questions d'entretien Spring Boot
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: dem-starter
+    niveau: junior
+    theme: Démarrer un projet
+    type: ouverte
+    question: "Qu'est-ce qu'un starter Spring Boot ? Donnez un exemple."
+    reponse: |
+      - Un starter est une dépendance qui regroupe toutes les librairies nécessaires à une fonctionnalité, avec des **versions compatibles entre elles**.
+      - Exemple : `spring-boot-starter-web` apporte Spring MVC, Jackson (JSON) et un serveur Tomcat embarqué.
+      - Il évite de chercher et d'assembler soi-même chaque dépendance individuellement.
+    lecon: initializr-starters
+
+  - id: dem-jar-executable
+    niveau: junior
+    theme: Démarrer un projet
+    type: qcm
+    question: "Que produit `spring-boot-maven-plugin` lors du build ?"
+    choix:
+      - "Un fichier de configuration XML"
+      - "Un jar exécutable autonome, contenant le code, les dépendances et un serveur embarqué"
+      - "Une image Docker"
+      - "Un rapport de tests"
+    reponse: 1
+    explication: "Sans ce plugin, `mvn package` produit un jar classique qui ne contient que le code du projet : `java -jar` échouerait par manque des dépendances. Le plugin réempaquette tout dans un jar exécutable autonome."
+    lecon: initializr-starters
+
+  - id: dem-classe-principale
+    niveau: junior
+    theme: Structure et démarrage
+    type: ouverte
+    question: "Où doit se trouver la classe annotée `@SpringBootApplication` et pourquoi ?"
+    reponse: |
+      - À la **racine** des packages du projet (ex. `com.boutique`), pas dans un sous-package.
+      - Le component scan part de ce package et descend dans tous ses sous-packages : une classe placée trop bas ne verrait pas les beans définis ailleurs dans l'arborescence.
+      - Une classe hors de cette hiérarchie ne sera jamais détectée, même avec la bonne annotation.
+    lecon: structure-demarrage
+
+  - id: dem-port-defaut
+    niveau: junior
+    theme: Structure et démarrage
+    type: qcm
+    question: "Sur quel port démarre le serveur embarqué par défaut avec `spring-boot-starter-web` ?"
+    choix:
+      - "80"
+      - "8080"
+      - "8443"
+      - "Aucun port, il faut le configurer explicitement"
+    reponse: 1
+    explication: "Le port 8080 est la valeur par défaut de `server.port`. On la change en redéfinissant cette propriété, par exemple `server.port=8081`."
+    lecon: structure-demarrage
+
+  # ---------- Confirmé ----------
+  - id: dem-auto-configuration
+    niveau: confirme
+    theme: Auto-configuration
+    type: ouverte
+    question: "Qu'est-ce que l'auto-configuration de Spring Boot ? Comment fonctionne-t-elle ?"
+    reponse: |
+      - Mécanisme qui crée automatiquement des beans d'infrastructure (DataSource, ObjectMapper Jackson, serveur web…) selon ce qui est présent dans le classpath et la configuration.
+      - Activée par `@EnableAutoConfiguration` (inclus dans `@SpringBootApplication`).
+      - Les classes de configuration candidates sont listées dans `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` ; chacune s'active seulement si ses conditions sont remplies : `@ConditionalOnClass` (une classe est présente dans le classpath), `@ConditionalOnMissingBean` (aucun bean équivalent déjà défini), `@ConditionalOnProperty` (une propriété a une certaine valeur).
+    lecon: auto-configuration-principe
+
+  - id: dem-bean-prioritaire
+    niveau: confirme
+    theme: Auto-configuration
+    type: qcm
+    question: "Une application définit son propre bean `ObjectMapper`. Que se passe-t-il avec la configuration Jackson de l'auto-configuration ?"
+    choix:
+      - "Conflit : le démarrage échoue avec deux beans `ObjectMapper`"
+      - "L'auto-configuration ne crée pas son propre `ObjectMapper`, grâce à `@ConditionalOnMissingBean`"
+      - "Les deux `ObjectMapper` coexistent, Spring choisit celui du contrôleur appelant"
+      - "Le bean personnalisé est ignoré, l'auto-configuration a toujours la priorité"
+    reponse: 1
+    explication: "C'est la règle générale de l'auto-configuration : vos propres beans sont toujours prioritaires. `@ConditionalOnMissingBean` fait que la configuration automatique s'efface dès qu'un bean du même type existe déjà, sans avoir besoin d'exclusion explicite."
+    lecon: auto-configuration-principe
+
+  - id: dem-diagnostiquer-autoconfig
+    niveau: confirme
+    theme: Auto-configuration
+    type: ouverte
+    question: "Une auto-configuration que vous attendiez ne s'active pas. Comment le diagnostiquer ?"
+    reponse: |
+      - Lancer l'application avec l'option `--debug` (ou `debug=true` dans `application.properties`) pour afficher le **rapport des conditions** (« Conditions Evaluation Report »).
+      - Ce rapport liste chaque classe de configuration candidate, avec la raison précise pour laquelle elle a été retenue (« matched ») ou écartée (« did not match »).
+      - Vérifier ensuite la cause la plus probable : dépendance manquante dans le classpath (`@ConditionalOnClass`), bean déjà défini par erreur (`@ConditionalOnMissingBean`), ou propriété de configuration absente/mal orthographiée (`@ConditionalOnProperty`).
+    lecon: auto-configuration-principe
+
+  # ---------- Senior ----------
+  - id: dem-exclure-vs-remplacer
+    niveau: senior
+    theme: Auto-configuration
+    type: ouverte
+    question: "Quelle différence entre exclure une auto-configuration et simplement définir son propre bean ? Quand choisir l'une ou l'autre approche ?"
+    reponse: |
+      - **Définir son propre bean** suffit dans la grande majorité des cas : `@ConditionalOnMissingBean` fait que l'auto-configuration s'efface d'elle-même dès qu'un bean du type attendu existe. C'est l'approche à privilégier, car elle reste compatible avec le reste de la logique de l'auto-configuration (propriétés associées, beans secondaires qu'elle définit aussi).
+      - **Exclure** (`@SpringBootApplication(exclude = ...)` ou `spring.autoconfigure.exclude`) désactive complètement une classe d'auto-configuration, y compris tous les beans secondaires qu'elle aurait pu créer. Utile quand l'auto-configuration par défaut ne convient pas du tout, par exemple pour gérer manuellement plusieurs `DataSource`.
+      - En entretien, le point à souligner : exclure « à la légère » peut désactiver plus de comportement que prévu ; c'est un outil pour les cas où l'on veut reprendre entièrement la main, pas le réflexe par défaut pour personnaliser un bean.
+    lecon: auto-configuration-principe
+
+  - id: dem-actuator-beans-conditions
+    niveau: senior
+    theme: Structure et démarrage
+    type: qcm
+    question: "Une application avec `spring-boot-starter-actuator` expose `/actuator/beans`. Quelle information n'y trouve-t-on PAS directement ?"
+    choix:
+      - "La liste des beans du contexte, avec leur type et leurs dépendances"
+      - "Les raisons pour lesquelles chaque auto-configuration a été retenue ou écartée"
+      - "Le scope de chaque bean"
+      - "Le nom de chaque bean"
+    reponse: 1
+    explication: "`/actuator/beans` liste les beans effectivement créés dans le contexte (nom, type, scope, dépendances), mais pas le raisonnement des conditions d'auto-configuration. Pour cela, il faut le rapport des conditions, obtenu avec `--debug` au démarrage (ou, avec Actuator, l'endpoint `/actuator/conditions`)."
+    lecon: auto-configuration-principe

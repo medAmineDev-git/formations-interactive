@@ -1,0 +1,87 @@
+# Questions d'entretien Spring Boot — chapitre Messagerie
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: msg-evenements-sync
+    niveau: confirme
+    theme: Événements Spring
+    type: ouverte
+    question: "Un `@EventListener` classique s'exécute-t-il sur le même thread que le code qui publie l'événement ? Quelle conséquence si l'écouteur lève une exception ?"
+    reponse: |
+      - Oui, par défaut : un `@EventListener` (sans `@Async`) s'exécute de façon **synchrone**, sur le même thread, et dans la même transaction que le code qui appelle `publishEvent(...)`.
+      - Une exception levée par l'écouteur **remonte** jusqu'au code publieur : si ce dernier est dans une transaction, elle est annulée, même si l'opération métier initiale s'était bien déroulée.
+      - C'est pour cette raison qu'on distingue « ce qui doit échouer avec l'opération principale » (écouteur synchrone classique) de « ce qui est secondaire et ne doit pas la faire échouer » (`@TransactionalEventListener` en phase `AFTER_COMMIT`, ou `@Async`).
+    explication: "Le piège classique en entretien : penser que les événements Spring sont asynchrones par défaut. Ils ne le sont pas, sauf `@Async` explicite."
+    lecon: evenements-spring
+
+  - id: msg-transactional-phase
+    niveau: senior
+    theme: Événements Spring
+    type: qcm
+    question: "Un `@TransactionalEventListener` (phase par défaut) est déclaré sur une méthode. L'événement est publié depuis un code qui ne s'exécute dans aucune transaction. Que se passe-t-il ?"
+    choix:
+      - "L'écouteur s'exécute immédiatement, comme un `@EventListener` classique"
+      - "L'écouteur n'est jamais invoqué, faute de commit à observer"
+      - "Spring ouvre automatiquement une transaction technique pour permettre l'exécution"
+      - "L'application refuse de démarrer"
+    reponse: 1
+    explication: "La phase par défaut est `AFTER_COMMIT` : elle suppose l'existence d'une transaction qui se termine par un commit. Sans transaction active, il n'y a rien à attendre, et l'écouteur est simplement ignoré, sans erreur bloquante — un piège fréquent en test."
+    lecon: evenements-spring
+
+  - id: msg-kafka-partition-ordre
+    niveau: confirme
+    theme: Kafka
+    type: ouverte
+    question: "Kafka garantit-il l'ordre des messages sur un topic ? Comment obtenir un ordre garanti pour les événements d'une même entité (ex. un même client) ?"
+    reponse: |
+      - Kafka garantit l'ordre **uniquement à l'intérieur d'une partition**, jamais entre partitions différentes d'un même topic.
+      - La partition est déterminée par le hash de la **clé** du message : deux messages publiés avec la même clé vont toujours dans la même partition, donc restent dans l'ordre l'un par rapport à l'autre.
+      - Pour garantir l'ordre des événements d'un même client, il faut donc utiliser son identifiant comme clé de message (ex. `clientId`).
+      - Attention : changer le nombre de partitions d'un topic déjà en production recalcule ce hash et peut casser cette garantie pour les nouveaux messages.
+    lecon: kafka
+
+  - id: msg-kafka-dlt
+    niveau: senior
+    theme: Kafka
+    type: qcm
+    question: "Un `@KafkaListener` est configuré avec un `DefaultErrorHandler` associé à un `DeadLetterPublishingRecoverer`. Un message provoque systématiquement une exception. Quel est le comportement ?"
+    choix:
+      - "Le message est ignoré dès la première erreur, sans aucune trace"
+      - "Le consumer group s'arrête pour éviter de perdre l'offset"
+      - "Le message est retraité selon le `BackOff` configuré, puis republié vers un topic `<nom>.DLT` une fois les tentatives épuisées, sans bloquer les messages suivants"
+      - "Le traitement bascule automatiquement sur un autre consommateur du même groupe"
+    reponse: 2
+    explication: "C'est le mécanisme standard de `spring-kafka` pour isoler un message toxique sans arrêter tout le flux : nouvelles tentatives locales, puis renvoi vers un topic dédié aux erreurs (DLT = dead letter topic) une fois le `BackOff` épuisé, en conservant l'exception dans les en-têtes."
+    lecon: kafka
+
+  - id: msg-rabbitmq-routage
+    niveau: confirme
+    theme: RabbitMQ
+    type: qcm
+    question: "Quelle est la différence entre un exchange `direct` et un exchange `topic` dans RabbitMQ ?"
+    choix:
+      - "`direct` route par correspondance exacte de la routing key ; `topic` permet des motifs avec `*` (un mot) et `#` (zéro ou plusieurs mots)"
+      - "`direct` diffuse à toutes les queues liées, `topic` route par correspondance exacte"
+      - "`topic` est réservé aux messages contenant des en-têtes personnalisés"
+      - "Il n'y a aucune différence fonctionnelle, seule la performance change"
+    reponse: 0
+    explication: "`direct` exige que la binding key corresponde exactement à la routing key du message. `topic` généralise ce mécanisme avec des motifs : `commandes.*.creee` correspond à `commandes.fr.creee` mais pas à `commandes.creee`. La diffusion à toutes les queues sans condition sur la routing key, c'est le rôle de l'exchange `fanout`."
+    lecon: rabbitmq
+
+  - id: msg-choisir-messagerie
+    niveau: senior
+    theme: Choisir une solution de messagerie
+    type: ouverte
+    question: "Comment choisiriez-vous entre Kafka et RabbitMQ pour un besoin donné ? Et entre un événement Spring en mémoire et une vraie messagerie ?"
+    reponse: |
+      **Kafka vs RabbitMQ** :
+      - Kafka est un **journal distribué, rejouable** : un message consommé reste disponible (selon la rétention), plusieurs consommateurs indépendants peuvent relire le même flux depuis leur propre offset. Adapté à un flux d'événements à fort volume, à l'historisation, au traitement par plusieurs équipes/systèmes du même flux.
+      - RabbitMQ est une **file de messages classique** : un message consommé et acquitté disparaît. Son routage est plus riche (direct, topic, fanout, headers), adapté à la distribution fine de tâches vers des files de travail.
+
+      **Événement Spring vs messagerie externe** :
+      - Un événement Spring vit uniquement **en mémoire, dans la JVM qui le publie**. S'il faut communiquer entre plusieurs services, ou survivre à un redémarrage du processus, un événement Spring seul ne suffit pas.
+      - La solution est soit une vraie messagerie (Kafka, RabbitMQ), soit, si l'on veut garantir l'atomicité entre l'écriture en base et la publication, un pattern **outbox transactionnel** : écrire l'événement dans une table en même temps que les données métier, puis le publier séparément vers la messagerie.
+    explication: "En entretien, savoir justifier ce choix avec des critères concrets (rejouabilité, granularité du routage, couplage inter-services) compte plus qu'une réponse par cœur."
+    lecon: rabbitmq

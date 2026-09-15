@@ -1,0 +1,80 @@
+# Questions d'entretien Spring Boot — Microservices avec Spring Cloud
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ms-decoupage-domaine
+    niveau: confirme
+    theme: Principes des microservices
+    type: ouverte
+    question: "Comment décidez-vous des frontières entre microservices ? Pourquoi une base de données par service ?"
+    reponse: |
+      - Le critère le plus fiable est le **bounded context** (Domain-Driven Design) : découper selon les sous-domaines métier (facturation, catalogue, expédition…), pas selon des couches techniques (web / métier / données), qui recréent en réseau un couplage déjà présent en mémoire.
+      - Chaque service possède sa **propre base de données**, inaccessible directement aux autres : sinon deux services partageant un schéma restent couplés (un renommage de colonne peut casser un autre service), même avec des API séparées.
+      - Un service expose ses données uniquement via son API ; un autre service qui en a besoin l'appelle, ou réagit à ses événements.
+    lecon: microservices-principes
+
+  - id: ms-quand-pas-microservices
+    niveau: senior
+    theme: Principes des microservices
+    type: qcm
+    question: "Dans quel contexte les microservices sont-ils le plus susceptibles d'être un mauvais choix ?"
+    choix:
+      - "Une grande organisation avec plusieurs équipes autonomes et des domaines métier déjà stables"
+      - "Une petite équipe qui démarre un produit dont le périmètre métier est encore incertain"
+      - "Un système qui a besoin de déployer certaines parties indépendamment, très fréquemment"
+      - "Un système dont certains composants ont des besoins de montée en charge très différents des autres"
+    reponse: 1
+    explication: "Les microservices ajoutent un coût réel (réseau, cohérence éventuelle, observabilité distribuée, déploiement multiplié) qui ne se justifie que par un bénéfice net en face. Quand le domaine métier n'est pas encore stabilisé, découper trop tôt fige des frontières qui vont de toute façon bouger : un monolithe modulaire est presque toujours un meilleur point de départ."
+    lecon: microservices-principes
+
+  - id: ms-config-refresh
+    niveau: confirme
+    theme: Configuration centralisée
+    type: ouverte
+    question: "Comment fonctionne le rafraîchissement de configuration à chaud avec Spring Cloud Config, et quelle en est la limite ?"
+    reponse: |
+      - Le client récupère sa configuration au démarrage via `spring.config.import=configserver:...`, en fonction de `spring.application.name`.
+      - Un appel `POST /actuator/refresh` republie les propriétés à jour dans le contexte, mais seuls les beans annotés `@RefreshScope` sont **détruits puis recréés** avec les nouvelles valeurs.
+      - Limite : un bean ordinaire (même basé sur `@ConfigurationProperties`) qui n'est pas dans ce scope garde les valeurs lues à sa création. Pour diffuser un rafraîchissement à toutes les instances d'un coup plutôt qu'une par une, Spring Cloud Bus s'appuie sur un broker de messages.
+    lecon: config-discovery
+
+  - id: ms-loadbalanced-piege
+    niveau: senior
+    theme: Découverte de services
+    type: qcm
+    question: "Un WebClient.Builder est injecté sans l'annotation @LoadBalanced dans un service qui utilise Eureka. Un appel est fait vers http://service-catalogue/produits/12. Que se passe-t-il ?"
+    choix:
+      - "L'appel fonctionne normalement, Spring Cloud résout automatiquement le nom via Eureka"
+      - "La résolution échoue : « service-catalogue » est traité comme un nom DNS classique, qui n'existe pas, sans consultation du registre Eureka"
+      - "L'appel est mis en attente jusqu'à ce qu'une instance s'enregistre"
+      - "Spring lève une exception au démarrage de l'application"
+    reponse: 1
+    explication: "Sans @LoadBalanced, le WebClient.Builder ne sait pas que « service-catalogue » est un nom de service logique : il tente une résolution DNS classique, qui échoue puisque ce nom n'existe que dans le registre Eureka. @LoadBalanced fait intercepter la requête par Spring Cloud LoadBalancer, qui interroge le client de découverte."
+    lecon: config-discovery
+
+  - id: ms-gateway-role
+    niveau: confirme
+    theme: API Gateway
+    type: ouverte
+    question: "Quel est le rôle d'une API Gateway devant des microservices, et qu'est-ce qu'on évite d'y mettre ?"
+    reponse: |
+      - Point d'entrée **unique** : routage des requêtes vers le bon service (route = predicates + filters + destination), sécurité transverse (authentification, relais de jeton), limitation de débit, en-têtes communs.
+      - `uri: lb://nom-service` fait résoudre la destination via la découverte de services et Spring Cloud LoadBalancer.
+      - Ce qu'on n'y met **pas** : la logique métier. La centraliser dans la gateway recrée un point de passage obligé pour tout changement, à l'opposé de l'autonomie de déploiement recherchée avec des microservices — elle doit rester une brique d'infrastructure.
+    lecon: gateway
+
+  - id: ms-circuit-breaker-etats
+    niveau: senior
+    theme: Résilience
+    type: qcm
+    question: "Un circuit breaker Resilience4j est en état OPEN. Un nouvel appel arrive. Que se passe-t-il, et comment le circuit peut-il revenir à CLOSED ?"
+    choix:
+      - "L'appel est tenté normalement ; le circuit repasse à CLOSED dès le premier appel réussi, quel que soit son état"
+      - "L'appel est immédiatement rejeté (repli direct, sans appel réel) ; après waitDurationInOpenState, le circuit passe en HALF_OPEN pour tester un nombre limité d'appels réels avant de décider"
+      - "L'appel est mis en file d'attente jusqu'à expiration d'un délai, puis exécuté normalement"
+      - "Le circuit reste OPEN indéfiniment tant qu'il n'est pas réinitialisé manuellement"
+    reponse: 1
+    explication: "En OPEN, aucun appel réel n'est tenté : la méthode de repli est appelée directement. Après le délai configuré (waitDurationInOpenState), le circuit passe en HALF_OPEN et autorise un nombre limité d'appels réels (permittedNumberOfCallsInHalfOpenState) : selon leur résultat, il repasse à CLOSED ou rouvre en OPEN."
+    lecon: resilience4j
