@@ -1,0 +1,96 @@
+# Questions d'entretien Java — chapitre Les exceptions
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: java-exc-hierarchie
+    niveau: junior
+    theme: Hiérarchie des exceptions
+    type: ouverte
+    question: "Quelle est la différence entre une exception vérifiée (checked) et une exception non vérifiée (unchecked) ?"
+    reponse: |
+      - Toutes les deux héritent de `Throwable`, via `Exception`.
+      - **Vérifiée** : n'hérite **pas** de `RuntimeException` (ex. `IOException`). Le compilateur oblige à la traiter, avec un `catch` ou un `throws` dans la signature de la méthode.
+      - **Non vérifiée** : hérite de `RuntimeException` (ex. `IllegalArgumentException`, `NullPointerException`). Aucune obligation du compilateur, elle peut se propager librement.
+      - `Error` (`OutOfMemoryError`…) est une branche à part, pour les problèmes graves de la JVM, en général non gérés par le code applicatif.
+    lecon: exceptions-bases
+
+  - id: java-exc-catch-ordre
+    niveau: junior
+    theme: Hiérarchie des exceptions
+    type: qcm
+    question: "Ce code compile-t-il ?"
+    code: |
+      try {
+          traiterCommande(commande);
+      } catch (RuntimeException e) {
+          journaliser(e);
+      } catch (IllegalStateException e) {
+          System.out.println("État invalide");
+      }
+    choix:
+      - "Oui, l'ordre des `catch` est libre"
+      - "Non : `IllegalStateException` est une sous-classe de `RuntimeException` déjà interceptée par le premier `catch`, le second est inaccessible"
+      - "Oui, mais seul le second `catch` s'exécutera"
+      - "Non : on ne peut avoir qu'un seul bloc `catch` par `try`"
+    reponse: 1
+    explication: "Piège classique en entretien technique : le compilateur refuse un `catch` devenu inaccessible parce qu'un type plus général a déjà été catché avant. Toujours ordonner du plus spécifique au plus général."
+    lecon: exceptions-bases
+
+  - id: java-exc-try-with-resources
+    niveau: junior
+    theme: Gestion des ressources
+    type: ouverte
+    question: "Qu'est-ce que le try-with-resources et quel problème résout-il par rapport à un `finally` manuel ?"
+    reponse: |
+      - Syntaxe `try (Ressource r = ...) { ... }` : `r.close()` est appelé automatiquement à la sortie du bloc, succès ou exception.
+      - Fonctionne pour toute classe qui implémente `AutoCloseable`.
+      - Résout deux problèmes du `finally` manuel : plus besoin d'initialiser la variable à `null` avant le `try`, et si `close()` lève une exception, elle n'écrase plus l'exception d'origine — elle devient une **exception supprimée**, récupérable avec `getSuppressed()`.
+    lecon: try-with-resources
+
+  # ---------- Confirmé ----------
+  - id: java-exc-suppressed
+    niveau: confirme
+    theme: Gestion des ressources
+    type: qcm
+    question: "Le corps du `try` lève une exception, puis `close()` de la ressource en lève une autre. Que se passe-t-il ?"
+    code: |
+      try (JournalCommandes journal = new JournalCommandes(chemin)) {
+          throw new IllegalStateException("Commande déjà traitée");
+          // close() lève ensuite une IOException
+      }
+    choix:
+      - "Seule l'`IOException` de `close()` est propagée, la première exception est perdue"
+      - "L'`IllegalStateException` d'origine est propagée, l'`IOException` de `close()` est ajoutée comme exception supprimée (`getSuppressed()`)"
+      - "Les deux exceptions sont levées en parallèle"
+      - "`close()` n'est pas appelé puisqu'une exception est déjà en cours"
+    reponse: 1
+    explication: "C'est l'un des principaux apports du try-with-resources sur un `finally` manuel : l'exception d'origine, généralement la plus significative, n'est jamais écrasée par une exception de fermeture. Elle reste accessible en trace via `getSuppressed()`."
+    lecon: try-with-resources
+
+  - id: java-exc-conception
+    niveau: confirme
+    theme: Concevoir ses exceptions
+    type: ouverte
+    question: "Comment décidez-vous si une exception métier doit être vérifiée ou non vérifiée ?"
+    reponse: |
+      Pas de règle unique, mais des critères :
+
+      - **Vérifiée** si l'appelant a une vraie action corrective à faire et doit y penser explicitement (ex. proposer un stock partiel plutôt qu'annuler).
+      - **Non vérifiée** si l'erreur est plutôt une condition exceptionnelle que la majorité des appelants ne peuvent pas traiter au cas par cas, ou si l'exception doit traverser de nombreuses couches avant d'être gérée (éviter de polluer chaque signature intermédiaire avec `throws`).
+      - Dans les deux cas : documenter avec `@throws` dans la Javadoc de l'API publique, et conserver la cause d'origine (`super(message, cause)`).
+    explication: "En entretien, mentionner que beaucoup de code métier moderne penche vers des exceptions non vérifiées pour limiter le bruit de propagation montre une compréhension pratique, pas seulement théorique."
+    lecon: exceptions-metier
+
+  - id: java-exc-catch-vide
+    niveau: confirme
+    theme: Concevoir ses exceptions
+    type: ouverte
+    question: "Pourquoi un `catch` vide est-il dangereux ? Quelles sont les bonnes alternatives quand un cas d'échec est en réalité attendu et fréquent ?"
+    reponse: |
+      - Un `catch (Exception e) { }` fait disparaître l'erreur sans aucune trace : le programme continue comme si tout allait bien, et le bug ne se révèle souvent que bien plus tard, loin de sa cause réelle.
+      - Au minimum, journaliser l'exception ; le plus souvent, la traiter réellement ou la relancer.
+      - Quand l'échec est un cas **normal et fréquent** (absence de résultat, validation), les exceptions ne sont pas le bon outil : préférer `Optional` pour une absence, un objet résultat pour un échec attendu, ou une validation en amont. Une exception coûte plus cher à créer (capture de la pile d'appels) qu'un simple retour de valeur.
+    lecon: exceptions-metier

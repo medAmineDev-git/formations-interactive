@@ -1,0 +1,79 @@
+# Questions d'entretien Java — chapitre « Tests et qualité »
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: java-test-lifecycle
+    niveau: confirme
+    theme: JUnit en profondeur
+    type: ouverte
+    question: "Quelle différence y a-t-il entre le mode d'instanciation par défaut de JUnit (`PER_METHOD`) et `@TestInstance(Lifecycle.PER_CLASS)`, et quel est l'impact sur `@BeforeAll` ?"
+    reponse: |
+      - `PER_METHOD` (défaut) : JUnit crée une nouvelle instance de la classe de test avant chaque méthode `@Test`. Aucune instance commune n'existe pour porter `@BeforeAll`/`@AfterAll`, qui doivent donc être `static`.
+      - `PER_CLASS` : une seule instance de la classe de test est partagée pour toutes les méthodes. `@BeforeAll`/`@AfterAll` peuvent alors être des méthodes d'instance ordinaires, non statiques.
+      - Revers de la médaille en `PER_CLASS` : un champ d'instance modifié par un test reste visible dans les tests suivants, ce qui exige de la vigilance pour ne pas créer de dépendance cachée entre tests.
+    lecon: junit-avance
+
+  - id: java-test-assert-timeout
+    niveau: senior
+    theme: JUnit en profondeur
+    type: qcm
+    question: "`assertTimeout(Duration.ofMillis(500), () -> appelBloquant())` échoue car l'appel dépasse le délai. Que se passe-t-il concrètement ?"
+    choix:
+      - "Le thread exécutant `appelBloquant()` est interrompu dès que le délai est dépassé"
+      - "L'appel continue de s'exécuter jusqu'à son terme sur le même thread ; l'échec n'est rapporté qu'une fois l'appel terminé"
+      - "Une `InterruptedException` est levée immédiatement à 500 ms"
+      - "Le test est marqué en échec avant même que l'appel ne commence"
+    reponse: 1
+    explication: "`assertTimeout` ne coupe pas l'exécution : contrairement à `assertTimeoutPreemptively` (qui exécute le code dans un thread séparé et l'abandonne au dépassement du délai), il laisse le code aller à son terme avant de signaler que la durée a été dépassée. Un appel réellement bloqué ne sera donc jamais interrompu par `assertTimeout` seul — un piège classique en entretien sur ce sujet."
+    lecon: junit-avance
+
+  - id: java-test-double-vocabulaire
+    niveau: confirme
+    theme: Doubles de test avec Mockito
+    type: ouverte
+    question: "Quelle différence entre un stub et un mock au sens strict du vocabulaire des doublures de test, et que faut-il éviter de mocker ?"
+    reponse: |
+      - Un **stub** renvoie des réponses préprogrammées sans qu'on vérifie ensuite ses appels. Un **mock** ajoute cette vérification (`verify`).
+      - Avec Mockito, le même objet créé par `mock(...)` sert aux deux usages : il devient un « mock » au sens strict seulement si le test appelle `verify` dessus.
+      - À éviter : les types qu'on ne possède pas (classes du JDK, d'une librairie tierce), dont le vrai comportement est mal connu et peut changer d'une version à l'autre ; les objets de valeur (un produit, une commande), qui sont des données à construire réellement, pas des comportements à simuler.
+    lecon: mockito
+
+  - id: java-test-strict-stub
+    niveau: senior
+    theme: Doubles de test avec Mockito
+    type: qcm
+    question: "Avec `@ExtendWith(MockitoExtension.class)`, un `when(...)` configuré sur un mock n'est jamais sollicité par le code exécuté pendant le test. Que se passe-t-il ?"
+    choix:
+      - "Rien : Mockito ignore silencieusement les stubbings inutilisés"
+      - "Le test échoue avec une `UnnecessaryStubbingException`, souvent le signe d'un test obsolète ou mal écrit"
+      - "Le mock renvoie automatiquement la valeur stubbée dès son premier appel, même différent de celui configuré"
+      - "Une erreur de compilation empêche le test de démarrer"
+    reponse: 1
+    explication: "`MockitoExtension` utilise le mode strict par défaut : un stubbing jamais réellement exercé pendant le test lève une `UnnecessaryStubbingException` en fin d'exécution. C'est un signal volontaire, souvent révélateur d'un copier-coller oublié ou d'un test qui a évolué sans qu'on retire un stub devenu inutile."
+    lecon: mockito
+
+  - id: java-test-couverture-objectif
+    niveau: confirme
+    theme: Qualité du code
+    type: ouverte
+    question: "Pourquoi viser 100% de couverture de code n'est-il généralement pas un bon objectif ?"
+    reponse: |
+      - La couverture mesure l'**exécution**, pas la **vérification** : un test sans assertion peut couvrir une ligne à 100% sans rien contrôler.
+      - Viser 100% pousse souvent à tester du code trivial (getters, setters) au détriment du temps passé sur les cas limites de la logique métier, là où se cachent les vrais bugs.
+      - Une couverture de **lignes** élevée peut masquer une couverture de **branches** incomplète : une condition testée seulement sur l'une de ses deux issues compte comme « ligne couverte » sans l'être vraiment.
+      - Un taux de couverture ciblé et raisonné, concentré sur la logique métier, vaut mieux qu'un taux maximal poursuivi pour lui-même.
+    lecon: qualite-couverture
+
+  - id: java-test-flaky
+    niveau: senior
+    theme: Qualité du code
+    type: ouverte
+    question: "Un test échoue de façon intermittente en intégration continue, sans lien apparent avec le code modifié. Quelles causes chercher, et quelle attitude éviter ?"
+    reponse: |
+      - Dépendance au **temps réel** (horloge système, `LocalDateTime.now()`), à l'**ordre d'exécution** des tests (état partagé, champ statique non réinitialisé), ou à une **concurrence** mal synchronisée (assertion faite avant qu'un traitement asynchrone ait réellement terminé).
+      - Éviter de simplement relancer le test jusqu'à ce qu'il passe : cela masque la cause réelle et habitue l'équipe à ignorer des échecs, au risque d'ignorer un jour un vrai échec.
+      - La correction porte sur la cause (isoler l'horloge derrière une abstraction, réinitialiser l'état entre chaque test, attendre une condition plutôt qu'un délai fixe), jamais seulement sur le symptôme.
+    explication: "En entretien, on attend surtout que le candidat cite les trois causes classiques (temps, ordre, concurrence) et refuse explicitement le réflexe « on relance jusqu'à ce que ça passe »."
+    lecon: qualite-couverture

@@ -1,0 +1,89 @@
+# Questions d'entretien Java — chapitre "Les bases du langage"
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: java-base-jdk-jre-jvm
+    niveau: junior
+    theme: JDK, JRE, JVM
+    type: ouverte
+    question: "Quelle est la différence entre le JDK, le JRE et la JVM ?"
+    reponse: |
+      - **JVM** (*Java Virtual Machine*) : exécute le bytecode Java, spécifique à chaque plateforme.
+      - **JRE** (*Java Runtime Environment*) : JVM + bibliothèques standard, pour exécuter un programme déjà compilé.
+      - **JDK** (*Java Development Kit*) : JRE + outils de développement (`javac`, `java`, jshell…), pour développer et compiler.
+
+      En pratique aujourd'hui, on installe un JDK dans tous les cas : Oracle ne distribue plus de JRE séparé depuis Java 11.
+    explication: "Bien formuler l'inclusion JDK ⊃ JRE ⊃ JVM, et savoir que le bytecode rend Java portable (« écrit une fois, exécuté partout »)."
+    lecon: jdk-jvm
+
+  - id: java-base-version-lts
+    niveau: junior
+    theme: Versions et distributions
+    type: ouverte
+    question: "Qu'est-ce qu'une version LTS de Java, et pourquoi est-ce important pour un projet en production ?"
+    reponse: |
+      - Java sort une nouvelle version majeure tous les **six mois**.
+      - Certaines versions sont désignées **LTS** (*Long-Term Support*) et reçoivent des correctifs de sécurité pendant plusieurs années, contrairement aux versions intermédiaires.
+      - En production, on choisit une LTS pour bénéficier d'un support prolongé sans devoir migrer à chaque nouvelle version. **Java 25** est la LTS la plus récente (les précédentes : 21, 17, 11, 8).
+    lecon: jdk-jvm
+
+  - id: java-base-integer-cache
+    niveau: junior
+    theme: Types et variables
+    type: qcm
+    question: "Pourquoi ce test peut-il donner un résultat surprenant selon les valeurs ?"
+    code: |
+      Integer a = 127;
+      Integer b = 127;
+      Integer c = 200;
+      Integer d = 200;
+      System.out.println((a == b) + " / " + (c == d));
+    choix:
+      - "true / true, car == compare toujours le contenu des Integer"
+      - "true / false, car Integer met en cache les valeurs -128 à 127 seulement"
+      - "false / false, car == ne fonctionne jamais sur des objets Integer"
+      - "false / true, l'inverse de la bonne réponse"
+    reponse: 1
+    explication: "L'autoboxing d'un `int` littéral passe par `Integer.valueOf`, qui réutilise un cache pour -128 à 127. 127 tombe dans le cache (`a == b` vrai), 200 non (`c == d` faux, deux objets distincts). Ce comportement dépend de l'implémentation : ne jamais s'y fier, toujours utiliser `.equals()`."
+    lecon: types-variables
+
+  - id: java-base-var
+    niveau: junior
+    theme: Types et variables
+    type: ouverte
+    question: "Que fait le mot-clé `var` ? Est-ce du typage dynamique ?"
+    reponse: |
+      - `var` demande au compilateur d'**inférer** le type d'une variable locale à partir de sa valeur d'initialisation.
+      - Ce n'est **pas** du typage dynamique : le type est déterminé une seule fois, à la **compilation**, puis reste figé — on ne peut pas réassigner une valeur d'un autre type ensuite.
+      - Limites : uniquement pour les variables **locales avec initialisation immédiate**, jamais pour un champ de classe ou un paramètre de méthode classique, et jamais sans valeur initiale.
+    explication: "Le piège classique en entretien : faire croire que Java devient dynamiquement typé avec `var`. Ce n'est jamais le cas."
+    lecon: types-variables
+
+  - id: java-base-switch-fallthrough
+    niveau: junior
+    theme: Structures de contrôle
+    type: qcm
+    question: "Quel est le principal piège du `switch` classique, corrigé par l'expression switch avec `->` ?"
+    choix:
+      - "Le switch classique ne peut comparer que des entiers"
+      - "Sans `break`, l'exécution continue dans le case suivant (fall-through), souvent par erreur"
+      - "Le switch classique ne supporte pas les chaînes de caractères"
+      - "Le switch classique ne peut avoir qu'un seul case"
+    reponse: 1
+    explication: "Oublier un `break` fait « tomber » l'exécution dans le `case` suivant sans avertissement du compilateur. L'expression switch avec `->` (finalisée en Java 14) ne fait jamais de fall-through, et peut en plus produire directement une valeur, avec vérification d'exhaustivité."
+    lecon: controle-flux
+
+  - id: java-base-string-immuable
+    niveau: junior
+    theme: Tableaux et chaînes
+    type: ouverte
+    question: "Pourquoi `String` est-elle immuable en Java, et quelle conséquence pratique cela a-t-il ?"
+    reponse: |
+      - Une fois créé, le contenu d'un objet `String` ne change jamais : toute méthode qui semble le transformer (`replace`, `toUpperCase`, `concat`…) renvoie en réalité un **nouvel** objet.
+      - Conséquence directe : il faut toujours **réaffecter** le résultat (`nom = nom.toUpperCase();`), sinon l'appel n'a aucun effet visible.
+      - Autre conséquence : concaténer avec `+` dans une **boucle** recrée un objet à chaque itération, coûteux sur de grandes chaînes — on utilise alors `StringBuilder`.
+      - Avantages de l'immuabilité : partage sûr entre plusieurs parties du code (le pool de chaînes réutilise les littéraux identiques sans risque), thread-safety naturelle, utilisable comme clé de `HashMap` en toute sécurité.
+    explication: "Un bon candidat relie l'immuabilité au pool de chaînes et à `StringBuilder`, sans se limiter à « ça ne change pas »."
+    lecon: tableaux-chaines

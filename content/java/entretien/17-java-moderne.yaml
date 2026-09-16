@@ -1,0 +1,122 @@
+questions:
+  - id: java-mod-instanceof-vs-switch
+    niveau: confirme
+    theme: Filtrage par motif
+    type: ouverte
+    question: "Quand préférer un switch sur motifs à une cascade if/instanceof, et à partir de quelle version Java peut-on l'utiliser ?"
+    reponse: |
+      - Le switch sur motifs (finalisé en **Java 21**, JEP 441) remplace avantageusement une cascade
+        if/else instanceof dès qu'il y a plus de deux ou trois cas à tester sur le type d'une même valeur.
+      - Il apporte un `case null` explicite (au lieu d'un test à part), et surtout une vérification
+        d'**exhaustivité** par le compilateur si la hiérarchie testée est scellée.
+      - Combiné aux motifs de record (également finalisés en Java 21, JEP 440), il permet en plus de
+        déconstruire l'objet directement dans le `case`, sans appeler ses accesseurs.
+      - Pour un simple test unique (une seule vérification de type), un `instanceof` avec variable de motif
+        (Java 16, JEP 394) reste plus léger qu'un switch.
+    explication: "Bien préciser les deux versions de finalisation (16 pour instanceof, 21 pour switch) : c'est un piège classique de les confondre ou de citer 19/20, qui n'étaient que des aperçus."
+    lecon: pattern-matching
+
+  - id: java-mod-record-pattern-imbrique
+    niveau: confirme
+    theme: Filtrage par motif
+    type: qcm
+    question: "Que fait ce code, avec record Adresse(String ville) {} et record Client(String nom, Adresse adresse) {} ?"
+    code: |
+      Object o = new Client("Martin", new Adresse("Lyon"));
+
+      if (o instanceof Client(String nom, Adresse(String ville))) {
+          System.out.println(nom + " - " + ville);
+      }
+    choix:
+      - "Ça ne compile pas : un motif de record ne peut pas s'imbriquer dans un autre motif de record"
+      - "Ça affiche « Martin - Lyon » : le motif déconstruit Client puis, dans la foulée, son composant Adresse"
+      - "Ça affiche « Client[nom=Martin, adresse=Adresse[ville=Lyon]] »"
+      - "Ça lève une NullPointerException car adresse n'est pas explicitement typée"
+    reponse: 1
+    explication: "Les motifs de record peuvent s'imbriquer : Client(String nom, Adresse(String ville)) déconstruit d'abord le Client en (nom, adresse), puis déconstruit ce composant adresse en (ville), en une seule expression. Le résultat affiché est « Martin - Lyon »."
+    lecon: pattern-matching
+
+  - id: java-mod-primitive-patterns-statut
+    niveau: senior
+    theme: Filtrage par motif
+    type: qcm
+    question: "Un collègue affirme que les motifs sur types primitifs (case int i when i > 0 ->) sont utilisables en production depuis Java 25, puisque le pattern matching switch est finalisé depuis Java 21. Qu'en penser ?"
+    choix:
+      - "C'est correct : toute extension du switch sur motifs suit automatiquement le même statut que le switch lui-même"
+      - "C'est incorrect : les motifs sur types primitifs (JEP 532) restent en aperçu au 16/09/2026, encore au 5ᵉ aperçu en Java 27, sans date de finalisation annoncée"
+      - "C'est incorrect : les motifs sur types primitifs ont été retirés, comme les modèles de chaînes"
+      - "C'est correct, mais seulement pour int et long, pas pour les autres types primitifs"
+    reponse: 1
+    explication: "Le switch sur motifs de type (référence) est bien finalisé depuis Java 21 (JEP 441), mais son extension aux types primitifs est un JEP séparé (JEP 532), qui en est à son 5ᵉ aperçu en Java 27 et n'a aucun JEP de finalisation déposé. Confondre les deux est une erreur fréquente : chaque JEP a son propre statut, indépendamment des JEP voisins du même projet."
+    lecon: pattern-matching
+
+  - id: java-mod-sealed-exhaustivite
+    niveau: confirme
+    theme: Classes scellées
+    type: ouverte
+    question: "Qu'apporte concrètement une hiérarchie scellée (sealed) par rapport à une interface classique, du point de vue du compilateur ?"
+    reponse: |
+      - Le compilateur connaît la liste complète des sous-types directs autorisés (via `permits`, ou déduits
+        du même fichier source).
+      - Un switch sur motifs qui teste une valeur de ce type peut donc être vérifié comme **exhaustif** sans
+        clause `default`, si tous les sous-types sont couverts.
+      - Concrètement, si on ajoute un nouveau sous-type plus tard, tout switch existant qui ne le traite pas
+        échoue à la recompilation (ou déclenche un avertissement) au lieu de silencieusement tomber dans un cas
+        par défaut ou de lever une exception en production.
+      - Sans `sealed`, l'interface reste ouverte : n'importe qui peut ajouter une implémentation, et aucune
+        vérification d'exhaustivité n'est possible sur un switch qui la couvre.
+    explication: "Le point à faire ressortir en entretien : l'intérêt n'est pas seulement documentaire, c'est une vérification à la compilation, qui transforme un oubli potentiel en erreur de build plutôt qu'en bug de production."
+    lecon: classes-scellees
+
+  - id: java-mod-sealed-vs-enum-ouvert
+    niveau: senior
+    theme: Classes scellées
+    type: ouverte
+    question: "Pour modéliser les états d'une commande (en attente, expédiée, livrée, annulée), pourquoi choisir une hiérarchie scellée de records plutôt qu'un enum, et dans quel cas garderait-on plutôt une interface ouverte ?"
+    reponse: |
+      - Un `enum` ne peut pas porter des **données différentes par constante** : toutes les constantes partagent
+        la même structure de champs. Si `Expediee` a besoin d'un transporteur et d'un numéro de suivi, et
+        `Annulee` d'un motif, un enum ne suffit plus.
+      - Une hiérarchie scellée de records (`sealed interface EtatCommande permits EnAttente, Expediee, Livree,
+        Annulee`, chacun étant un record avec ses propres composants) modélise cette variété de données tout en
+        gardant l'exhaustivité vérifiée par le compilateur sur un switch.
+      - On garderait plutôt une interface **ouverte** (non scellée, ou avec une branche `non-sealed`) quand
+        l'ensemble des variantes n'est pas connu à l'avance ou doit rester extensible sans recompiler le code
+        existant — typiquement un point d'extension de bibliothèque ou un système de plugins, pas un ensemble
+        d'états métier internes et stables.
+    explication: "Le fil rouge à tenir : sealed sert à figer un ensemble fini et connu (somme de types), pas à remplacer systématiquement le polymorphisme classique partout."
+    lecon: classes-scellees
+
+  - id: java-mod-string-templates-retirees
+    niveau: senior
+    theme: Nouveautés récentes
+    type: qcm
+    question: "Un tutoriel en ligne montre comment utiliser STR.\"Bonjour \\{nom}\" pour interpoler une chaîne en Java moderne. Que faut-il vérifier avant de le suivre ?"
+    choix:
+      - "Rien : cette syntaxe (modèles de chaînes) est disponible depuis Java 21 sans configuration particulière"
+      - "Que le tutoriel n'est pas obsolète : les modèles de chaînes (JEP 465) ont été retirés avant la sortie de Java 23 et n'ont jamais été livrés, sur aucune version actuelle du JDK"
+      - "Que --enable-preview est bien activé, cette fonctionnalité étant encore en aperçu en Java 27"
+      - "Que le projet cible bien Java 17, seule version où cette syntaxe est disponible"
+    reponse: 1
+    explication: "Les modèles de chaînes sont un cas emblématique de fonctionnalité preview abandonnée : deux aperçus (Java 21 puis 22), puis un 3ᵉ aperçu annoncé mais retiré avant Java 23, sans successeur déposé depuis. Ce code ne compile sur aucune version actuelle du JDK, quelle que soit la date à laquelle le tutoriel a été écrit."
+    lecon: nouveautes-recentes
+
+  - id: java-mod-migration-strategie
+    niveau: confirme
+    theme: Migrer vers du Java moderne
+    type: ouverte
+    question: "Une équipe doit faire passer un projet de Java 17 à Java 21, avant de moderniser progressivement le style du code. Quelles étapes suivre pour limiter le risque de régression ?"
+    reponse: |
+      - Compiler avec l'option `--release 21` plutôt que `-source`/`-target` : elle restreint aussi bien la
+        syntaxe que les API disponibles à celles qui existaient réellement en Java 21, évitant un appel
+        accidentel à une API plus récente.
+      - Vérifier les contraintes de version des outils du projet : certaines dépendances imposent un plancher
+        JDK indépendant de la version ciblée par le code compilé (par exemple JUnit 6, qui exige Java 17+).
+      - Passer `jdeps` sur les artefacts existants pour repérer les dépendances vers des API internes non
+        garanties (`sun.*`, `com.sun.*`), susceptibles de casser silencieusement d'une version à l'autre.
+      - Faire tourner l'intégralité de la suite de tests à ce palier, avant d'envisager le palier suivant
+        (21 → 25) ou toute modernisation de style.
+      - Traiter la modernisation du style (records, switch sur motifs, blocs de texte) comme une étape
+        **séparée**, postérieure à la stabilisation technique de la compilation et de l'exécution.
+    explication: "Le piège classique en entretien est de répondre uniquement « on change la version dans le pom.xml » : la réponse attendue distingue migration technique (compatibilité, API, outillage) et modernisation du style, menées en deux temps."
+    lecon: ecrire-java-moderne

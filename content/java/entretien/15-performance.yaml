@@ -1,0 +1,65 @@
+questions:
+  - id: java-perf-pourquoi-nanotime-faux
+    niveau: confirme
+    theme: Mesurer avant d'optimiser
+    type: ouverte
+    question: "Pourquoi un chronométrage artisanal avec System.nanoTime() autour d'une boucle donne-t-il souvent un résultat trompeur sur la JVM ?"
+    reponse: |
+      - Il mélange préchauffage et régime stabilisé : les premières itérations sont interprétées ou compilées par un compilateur peu optimisant (C1), les suivantes par un code bien plus optimisé (C2) — la moyenne ne représente aucun des deux régimes.
+      - Le JIT peut éliminer un calcul dont le résultat n'est jamais utilisé (élimination de code mort), ou précalculer un résultat à partir d'une entrée que le compilateur prouve constante (repliement de constantes) : le code mesuré n'est alors plus le code réellement exécuté en production.
+      - Un passage du ramasse-miettes pendant la fenêtre de mesure peut ajouter un pic isolé qui fausse une moyenne calculée sur peu d'itérations.
+    explication: "Un bon candidat cite au moins deux de ces trois effets, pas seulement 'le préchauffage'. Faire préciser comment JMH répond à chacun (Warmup/Measurement séparés, Blackhole, forks multiples) distingue une réponse de surface d'une compréhension réelle."
+    lecon: mesurer-jmh
+
+  - id: java-perf-c1-c2
+    niveau: senior
+    theme: Le compilateur à la volée
+    type: ouverte
+    question: "Expliquez la compilation par paliers de la JVM HotSpot : à quoi servent respectivement C1 et C2 ?"
+    reponse: |
+      - Le bytecode est d'abord interprété : disponible immédiatement, mais lent.
+      - Une méthode qui devient un point chaud est compilée par C1 (compilateur client) : compilation rapide, peu d'optimisations, mais instrumentation du code pour collecter du profilage réel (branches prises, types concrets rencontrés).
+      - Si la méthode reste chaude, C2 (compilateur serveur) la recompile en s'appuyant sur ce profilage, avec des optimisations bien plus agressives : inlining profond, analyse d'échappement, déroulage de boucle.
+      - Ce compromis évite à la fois un démarrage trop lent (tout compiler agressivement dès le départ) et des performances de croisière médiocres (ne jamais optimiser au-delà de l'interprétation).
+    explication: "Un candidat solide relie explicitement le profilage collecté par C1 à la qualité des optimisations que C2 peut ensuite appliquer — ce n'est pas juste 'un compilateur rapide puis un compilateur lent', c'est un pipeline où chaque palier nourrit le suivant."
+    lecon: jit-optimisations
+
+  - id: java-perf-desoptimisation
+    niveau: senior
+    theme: Le compilateur à la volée
+    type: qcm
+    question: "Un appel de méthode a toujours résolu vers la même implémentation concrète depuis le début de l'exécution, et le JIT l'a optimisé en conséquence. Une classe chargée dynamiquement plus tard fournit soudain une seconde implémentation à cet appel. Que fait la JVM ?"
+    choix:
+      - "Elle ignore silencieusement la nouvelle classe et continue d'appeler l'ancienne implémentation"
+      - "Elle désoptimise la méthode concernée (retour temporaire à l'interprétation), en toute sécurité, puis peut la recompiler avec un profil tenant compte des deux implémentations"
+      - "Elle lève une erreur irrécupérable, car une hypothèse du JIT ne peut jamais être invalidée après compilation"
+      - "Elle recompile immédiatement toute l'application depuis le début pour repartir sur des bases saines"
+    reponse: 1
+    explication: "La désoptimisation est un mécanisme sûr et courant : quand une hypothèse spéculative posée par le JIT devient fausse, la méthode concernée revient temporairement à l'interprétation, le temps qu'un profil à jour permette une recompilation correcte. Cela garantit la justesse du programme, au prix d'une pénalité ponctuelle — jamais d'un plantage."
+    lecon: jit-optimisations
+
+  - id: java-perf-hashcode-mauvais
+    niveau: senior
+    theme: Pièges courants
+    type: ouverte
+    question: "Un HashMap dont les clés ont un hashCode() qui retourne toujours la même constante compile et respecte le contrat hashCode/equals. Quel est le problème, et pourquoi est-il difficile à détecter ?"
+    reponse: |
+      - Le contrat hashCode()/equals() est bien respecté (deux objets égaux ont le même hashCode), donc le code compile et fonctionne correctement d'un point de vue fonctionnel.
+      - Le problème est uniquement de performance : tous les éléments tombent dans le même bucket interne du HashMap, ce qui transforme chaque recherche, insertion ou suppression en un parcours quasi linéaire de tous les éléments, au lieu d'un accès proche de O(1).
+      - Ce piège est difficile à détecter car aucune exception n'est levée et le code produit des résultats corrects — seule une dégradation progressive des performances à mesure que la map grossit le révèle, typiquement via du profilage plutôt qu'une relecture du code.
+    explication: "Cette question teste si le candidat distingue bien correction fonctionnelle et performance — un hashCode() constant est un piège classique parce qu'il ne casse jamais un test unitaire, seulement le comportement à l'échelle."
+    lecon: pieges-performance
+
+  - id: java-perf-priorite-optimisation
+    niveau: confirme
+    theme: Pièges courants
+    type: qcm
+    question: "Dans quel ordre de priorité faut-il aborder une optimisation de performance ?"
+    choix:
+      - "Micro-optimisations d'abord (elles sont les plus rapides à appliquer), puis structures de données, puis algorithme si le temps le permet"
+      - "L'algorithme d'abord (sa complexité domine tout le reste), puis le choix des structures de données, et seulement ensuite des micro-optimisations locales justifiées par une mesure"
+      - "Toujours commencer par ajouter du cache, quel que soit le problème observé"
+      - "L'ordre n'a pas d'importance tant que le code final passe les tests de performance"
+    reponse: 1
+    explication: "Une micro-optimisation ne compense jamais un algorithme de complexité supérieure sur un volume suffisant : un O(n²) reste mauvais quelle que soit la finesse de son implémentation. Le bon réflexe est de vérifier l'algorithme, puis les structures de données (souvent traité au chapitre Collections), et de ne s'attaquer aux micro-optimisations locales qu'une fois ces deux niveaux validés — et seulement là où une mesure le justifie."
+    lecon: pieges-performance

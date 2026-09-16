@@ -1,0 +1,120 @@
+# Questions d'entretien Java — Chapitre : Conception et patterns (conception)
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: java-conc2-srp-symptome
+    niveau: confirme
+    theme: Principes SOLID
+    type: ouverte
+    question: "Comment reconnaît-on, en pratique, qu'une classe viole le principe de responsabilité unique ? Donnez un exemple."
+    reponse: |
+      - Le symptôme le plus fiable : la classe change pour plusieurs raisons totalement indépendantes (par exemple une règle métier de calcul de remise d'un côté, un format d'export de l'autre).
+      - Dans l'historique git, cela se voit à des commits sans rapport qui touchent le même fichier pour des motifs différents, souvent portés par des équipes ou des tickets différents.
+      - Exemple concret : une classe Commande qui porte à la fois le calcul du total, la persistance en base et la génération d'un ticket HTML doit changer si la règle de calcul évolue, si le schéma de base change, ou si le format du ticket change.
+      - La correction consiste à extraire chaque responsabilité dans sa propre classe (Commande, CommandeRepository, TicketCommandeFormatter), chacune avec une seule raison de changer.
+    explication: "Un bon candidat ne récite pas juste la définition ('une classe, une responsabilité') mais explique comment la détecter concrètement — raisons de changement indépendantes, historique de commits — et propose une extraction précise plutôt qu'une réponse vague."
+    lecon: solid
+
+  - id: java-conc2-lsp-exception
+    niveau: confirme
+    theme: Principes SOLID
+    type: qcm
+    question: "Une sous-classe CarteCadeau redéfinit appliquerRemise() pour lever UnsupportedOperationException, alors que la classe mère MoyenPaiement promet d'appliquer une remise sur tout moyen de paiement. Quel principe SOLID est violé ?"
+    code: |
+      public class CarteCadeau extends MoyenPaiement {
+          @Override
+          public void appliquerRemise(double pourcentage) {
+              throw new UnsupportedOperationException();
+          }
+      }
+    choix:
+      - "Le principe de responsabilité unique (SRP), car CarteCadeau a plusieurs raisons de changer"
+      - "Le principe de substitution de Liskov (LSP), car CarteCadeau ne peut pas remplacer MoyenPaiement partout où celui-ci est attendu, sans surprise pour le code appelant"
+      - "Le principe ouvert/fermé (OCP), car ajouter CarteCadeau a nécessité de modifier MoyenPaiement"
+      - "Le principe de ségrégation des interfaces (ISP), car MoyenPaiement déclare trop de méthodes"
+    reponse: 1
+    explication: "Le code appelant qui manipule des MoyenPaiement s'attend légitimement à pouvoir appeler appliquerRemise() sur n'importe lequel d'entre eux. CarteCadeau trahit ce contrat en levant une exception à l'exécution, ce qui est la définition même d'une violation du principe de substitution de Liskov — le problème n'est pas la responsabilité de la classe, ni son interface, mais le contrat rompu envers ses appelants."
+    lecon: solid
+
+  - id: java-conc2-dip-injection
+    niveau: senior
+    theme: Principes SOLID
+    type: ouverte
+    question: "Comment le principe d'inversion des dépendances se manifeste-t-il concrètement dans une application Spring, et quel problème résout-il par rapport à un service qui instancie lui-même ses dépendances avec new ?"
+    reponse: |
+      - Une classe annotée @Service ou @Component déclare dépendre d'une interface (par exemple PasserellePaiement) dans son constructeur, sans jamais instancier une implémentation concrète elle-même.
+      - Le conteneur Spring choisit et fournit l'implémentation concrète au démarrage (injection de dépendances) — c'est la mise en œuvre pratique de l'inversion des dépendances : le module de haut niveau et le module de bas niveau dépendent tous deux d'une abstraction.
+      - Sans cette inversion, un service qui fait `new PasserellePaiementStripe()` dans son constructeur ne peut pas être testé sans appeler la vraie API Stripe, et changer de fournisseur oblige à modifier ce service.
+      - Avec l'injection, un test unitaire fournit un double de test qui implémente PasserellePaiement, sans toucher au code du service ; changer de fournisseur de paiement en production ne touche à aucune ligne du service, seulement à la configuration du bean injecté.
+    explication: "Vérifier que le candidat relie explicitement DIP et injection de dépendances (l'un est le principe, l'autre la technique qui le met en œuvre), et qu'il cite un bénéfice concret (testabilité, remplacement d'implémentation) plutôt qu'une réponse purement théorique."
+    lecon: solid
+
+  - id: java-conc2-singleton-alternatives
+    niveau: confirme
+    theme: Patrons de création et de structure
+    type: qcm
+    question: "Quelle est la principale raison de préférer un bean Spring à portée singleton (ou une énumération) à un singleton écrit à la main avec un champ static et getInstance() ?"
+    choix:
+      - "Un singleton fait main est plus lent à l'exécution qu'un bean Spring"
+      - "Un singleton fait main installe un accès global caché, impossible à remplacer par un double de test, et son initialisation paresseuse doit être sécurisée manuellement en environnement concurrent"
+      - "Java interdit désormais d'écrire un singleton à la main depuis les versions récentes du JDK"
+      - "Un singleton fait main ne peut contenir aucun champ mutable"
+    reponse: 1
+    explication: "Le problème du singleton fait main n'est pas la performance mais la conception : getInstance() est un accès global invisible dans les signatures de méthode, impossible à substituer en test, et son initialisation paresseuse (if (instance == null)) doit être sécurisée à la main face à plusieurs threads. Un bean à portée singleton géré par Spring garde l'instance unique mais reste injectable et testable ; une énumération à une seule valeur règle l'aspect thread-safe de l'instanciation, sans résoudre l'accès global."
+    lecon: patterns-structurels
+
+  - id: java-conc2-decorateur-vs-proxy
+    niveau: senior
+    theme: Patrons de création et de structure
+    type: ouverte
+    question: "Quelle est la différence entre un décorateur et un proxy, alors que les deux enveloppent un objet derrière la même interface ? Donnez un exemple de chacun."
+    reponse: |
+      - Les deux implémentent la même interface que l'objet qu'ils enveloppent et lui délèguent l'appel — structurellement, ils se ressemblent beaucoup.
+      - La nuance est dans l'intention : le décorateur ajoute un comportement et se compose librement, plusieurs décorateurs pouvant s'empiler (BufferedReader autour d'InputStreamReader autour de FileInputStream dans le JDK, ou un NotificateurAvecReessai qui ajoute une logique de nouvelle tentative).
+      - Le proxy contrôle l'accès à un objet réel précis — chargement différé, cache, vérification de sécurité — souvent de façon transparente et à un seul niveau, sans intention de composition. Exemple : un CatalogueProduitsAvecCache qui sert les résultats depuis un cache avant de solliciter le catalogue réel, ou les proxys générés par Spring AOP pour la gestion transactionnelle et par Hibernate pour le chargement différé des associations.
+      - En pratique, la distinction compte surtout pour communiquer une intention en revue de code ; le mécanisme (une classe qui implémente l'interface enveloppée et délègue) est le même.
+    explication: "Un bon candidat sait citer l'exemple des flux du JDK pour le décorateur et Spring AOP/Hibernate pour le proxy — deux références qui montrent une compréhension pratique, pas seulement théorique, de ces deux patrons très proches structurellement."
+    lecon: patterns-structurels
+
+  - id: java-conc2-strategie-lambda
+    niveau: confirme
+    theme: Patrons de comportement
+    type: ouverte
+    question: "Depuis Java 8, a-t-on encore besoin d'écrire une interface Stratégie ou Observateur dédiée ? Justifiez avec un exemple."
+    reponse: |
+      - Pas systématiquement : si la stratégie ou l'observateur n'a besoin que d'une seule méthode abstraite, une interface fonctionnelle standard du JDK (Function, Consumer, Predicate, Supplier) associée à une lambda remplit exactement le même rôle, sans classe ni interface supplémentaire à maintenir.
+      - Exemple stratégie : au lieu d'une interface RegleRemise avec une implémentation par type de client, un simple Function<Double, Double> stocké et interchangé au constructeur suffit (montant -> montant * 0.90).
+      - Exemple observateur : une List<Consumer<Commande>> d'écouteurs remplace une interface ObservateurCommande avec sa méthode surChangementStatut(), pour le même résultat.
+      - Une interface dédiée reste justifiée quand son nom clarifie vraiment l'intention métier, quand plusieurs méthodes sont nécessaires, ou quand le découplage doit être total (événements applicatifs Spring, où l'émetteur ne connaît même pas l'existence des écouteurs).
+    explication: "La réponse attendue nuance : ce n'est pas 'toujours une lambda' ni 'toujours une interface dédiée', mais un choix qui dépend du nombre de méthodes et du besoin réel de nommer le concept. Un candidat qui répond par l'un ou l'autre extrême sans nuance manque une partie de la question."
+    lecon: patterns-comportementaux
+
+  - id: java-conc2-visiteur-scelle
+    niveau: senior
+    theme: Patrons de comportement
+    type: qcm
+    question: "Une hiérarchie LigneCommande (ArticleUnique, LotArticles) est fermée et connue à l'avance. Quelle affirmation sur le choix entre patron visiteur et filtrage par motif est correcte ?"
+    choix:
+      - "Le patron visiteur (accept/visit) reste la seule façon d'obtenir une vérification d'exhaustivité en Java, quelle que soit la version"
+      - "Une hiérarchie sealed associée à un switch avec filtrage par motif obtient la même garantie d'exhaustivité que le visiteur, vérifiée par le compilateur, sans le mécanisme accept/visit à maintenir sur chaque type"
+      - "Le filtrage par motif sur switch n'est utilisable qu'avec des enum, jamais avec des interfaces scellées"
+      - "Le patron visiteur et le filtrage par motif résolvent des problèmes entièrement différents et ne sont jamais interchangeables"
+    reponse: 1
+    explication: "Depuis les classes scellées (Java 17, finalisées) et le filtrage par motif sur switch (Java 21, finalisé), un switch exhaustif sur une hiérarchie sealed obtient exactement ce que le visiteur apportait — ajouter une opération sans modifier les types, avec une exhaustivité garantie à la compilation — sans écrire de paire accept/visit par type. Le visiteur classique garde un intérêt sur une hiérarchie non scellée, extensible par du code tiers, où l'exhaustivité ne peut de toute façon pas être garantie."
+    lecon: patterns-comportementaux
+
+  - id: java-conc2-quand-pas-de-patron
+    niveau: senior
+    theme: Concevoir en Java aujourd'hui
+    type: ouverte
+    question: "Un patron de conception (ou un principe SOLID) peut-il être nuisible ? Donnez un exemple concret où l'appliquer aurait fait plus de mal que de bien."
+    reponse: |
+      - Oui : ces principes et patrons sont des guides pour repérer un problème, pas des règles à appliquer systématiquement. Les appliquer sans qu'un problème réel les justifie ajoute de la complexité sans bénéfice.
+      - Exemple DIP : créer une interface PasserellePaiement avec une seule implémentation, sans second fournisseur prévu ni besoin de test isolé, ajoute un fichier à ouvrir sans gain réel.
+      - Exemple Builder : un monteur pour une classe à deux champs obligatoires (Produit(String nom, double prix)) est plus verbeux qu'un constructeur ordinaire, pour un bénéfice nul.
+      - Exemple SRP poussé à l'extrême : extraire une classe pour une seule méthode privée triviale multiplie les fichiers sans réduire aucune raison de changement réelle du code.
+      - Le signal à surveiller : une abstraction introduite *avant* d'avoir observé le problème qu'elle résout, plutôt qu'en réponse à une douleur constatée dans le code existant.
+    explication: "Cette question distingue les candidats qui récitent des patrons de ceux qui ont un vrai jugement de conception. Une réponse qui affirme que SOLID ou les design patterns doivent 'toujours' être appliqués, sans nuance ni exemple concret de sur-ingénierie, doit être creusée davantage."
+    lecon: conception-moderne

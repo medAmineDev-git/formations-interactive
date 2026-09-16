@@ -1,0 +1,103 @@
+questions:
+  - id: java-jvm-delegation
+    niveau: confirme
+    theme: Architecture de la JVM
+    type: ouverte
+    question: "Comment fonctionne le modèle de délégation des chargeurs de classes en Java, et pourquoi est-il important ?"
+    reponse: |
+      - Trois chargeurs hiérarchiques : bootstrap (natif, charge java.base), platform (reste du JDK), application (classpath/module-path de l'application).
+      - Chaque chargeur délègue d'abord la demande à son parent avant d'essayer de charger lui-même la classe : c'est le modèle « parent-first ».
+      - Une classe n'est chargée par un chargeur enfant que si aucun de ses ancêtres n'a pu la trouver.
+      - Ce modèle protège les classes cœur du JDK (java.lang.String, par exemple) : une classe applicative portant le même nom ne peut pas les remplacer silencieusement, car le bootstrap est toujours consulté en premier.
+    explication: "Un bon candidat relie ce mécanisme à un cas concret : deux versions différentes d'une même bibliothèque isolées via des chargeurs distincts (serveurs d'applications), ou le risque de sécurité qu'éviterait la délégation."
+    lecon: architecture-jvm
+
+  - id: java-jvm-init-trigger
+    niveau: senior
+    theme: Architecture de la JVM
+    type: qcm
+    question: "Quel usage d'une classe déclenche réellement son initialisation (exécution du bloc static) par la JVM ?"
+    code: |
+      class Compteur {
+          static { System.out.println("init"); }
+          static final int LIMITE = 10; // constante compile-time
+          static int valeur = 0;         // champ statique non constant
+      }
+      Class<?> c = Compteur.class;   // (1)
+      int x = Compteur.LIMITE;        // (2)
+      Compteur.valeur = 5;            // (3)
+    choix:
+      - "Les trois lignes déclenchent l'initialisation de Compteur, car elles font toutes référence à la classe"
+      - "Seule la ligne (3) déclenche l'initialisation : (1) n'est qu'une référence de type, et (2) accède à une constante compile-time inlinée par le compilateur, sans référence réelle à la classe au runtime"
+      - "Seule la ligne (1) déclenche l'initialisation, car Class.class charge toujours la classe complètement"
+      - "Aucune des trois ne déclenche l'initialisation : il faut explicitement appeler Class.forName pour cela"
+    reponse: 1
+    explication: "C'est un piège classique en entretien senior : Compteur.class ne provoque qu'un chargement de la classe, pas son initialisation ; une constante static final connue à la compilation est inlinée directement par javac, donc son accès ne référence plus réellement la classe. Seule l'écriture d'un champ statique non constant (valeur) constitue un usage actif qui force l'initialisation."
+    lecon: architecture-jvm
+
+  - id: java-jvm-heap-vs-stack
+    niveau: confirme
+    theme: Zones mémoire
+    type: ouverte
+    question: "Quelle est la différence entre le tas et la pile en Java, et que se passe-t-il quand chacun déborde ?"
+    reponse: |
+      - Le tas est partagé entre tous les threads et contient tous les objets créés avec new ; il est géré par le ramasse-miettes et dimensionné par -Xmx/-Xms.
+      - La pile est propre à chaque thread : elle empile une frame par appel de méthode (variables locales, résultats intermédiaires), dimensionnée par -Xss.
+      - Un tas plein (objets encore atteignables) lève OutOfMemoryError: Java heap space.
+      - Une pile épuisée (récursion trop profonde ou infinie) lève StackOverflowError, indépendamment de l'état du tas.
+    explication: "Un bon candidat sait préciser qu'une référence d'objet elle-même (la variable) vit sur la pile, alors que l'objet pointé vit sur le tas — la confusion entre les deux est fréquente."
+    lecon: zones-memoire
+
+  - id: java-jvm-soft-weak
+    niveau: senior
+    theme: Zones mémoire
+    type: qcm
+    question: "Pour un cache applicatif qu'on souhaite conserver le plus longtemps possible sans jamais provoquer d'OutOfMemoryError, quel type de référence est le plus adapté ?"
+    choix:
+      - "Une référence forte classique, en purgeant manuellement le cache dès que sa taille dépasse un seuil fixe"
+      - "SoftReference : elle n'est collectée qu'en cas de pression mémoire réelle, juste avant qu'une OutOfMemoryError ne survienne, ce qui laisse le cache vivre aussi longtemps que la mémoire le permet"
+      - "WeakReference : elle garantit que le cache reste toujours de taille minimale, quelle que soit la pression mémoire"
+      - "PhantomReference, car c'est la seule référence conçue spécifiquement pour les caches"
+    reponse: 1
+    explication: "SoftReference est le compromis attendu ici : contrairement à WeakReference (collectée dès le cycle de GC suivant, sans lien avec la pression mémoire), elle n'est éliminée qu'en dernier recours, avant un OutOfMemoryError. Elle reste un filet de sécurité, pas un algorithme d'éviction précis (pas d'ordre LRU garanti) : à combiner avec une bibliothèque de cache dédiée si un contrôle plus fin est nécessaire."
+    lecon: zones-memoire
+
+  - id: java-jvm-generational-gc
+    niveau: senior
+    theme: Le ramasse-miettes
+    type: ouverte
+    question: "Qu'est-ce que l'hypothèse générationnelle, et comment justifie-t-elle la conception de la plupart des ramasse-miettes modernes ?"
+    reponse: |
+      - L'hypothèse générationnelle observe que la plupart des objets meurent très jeunes, et que ceux qui survivent longtemps ont tendance à survivre très longtemps.
+      - Elle justifie de diviser le tas en une jeune génération (objets nouvellement créés) et une vieille génération (objets ayant survécu à plusieurs collectes mineures).
+      - Les collectes mineures (jeune génération) sont fréquentes et rapides, car elles ne copient que les rares survivants ; les collectes majeures (vieille génération) sont plus rares mais plus coûteuses.
+      - Un objet qui survit à plusieurs collectes mineures consécutives est "promu" vers la vieille génération.
+    explication: "Faire préciser que le coût d'une collecte mineure dépend du nombre d'objets survivants (faible), pas du nombre total d'objets alloués dans Eden : c'est ce qui rend l'approche efficace, distingue un candidat qui a compris le mécanisme d'un candidat qui répète juste le vocabulaire."
+    lecon: ramasse-miettes
+
+  - id: java-jvm-choisir-gc
+    niveau: senior
+    theme: Le ramasse-miettes
+    type: qcm
+    question: "Une équipe migre un service de traitement par lots (débit maximal recherché, pas de contrainte de latence individuelle) vers ZGC \"parce que c'est le plus récent\". Que penser de ce choix ?"
+    choix:
+      - "C'est le bon choix : ZGC est systématiquement le collecteur le plus performant, quelle que soit la charge"
+      - "C'est un choix discutable : ZGC optimise la latence des pauses, pas le débit global ni l'empreinte mémoire ; pour un traitement par lots sans contrainte de latence, Parallel (voire G1, le défaut) peut offrir un meilleur débit total"
+      - "C'est nécessaire : G1 et Parallel ont été supprimés du JDK au profit de ZGC"
+      - "C'est sans importance : tous les collecteurs du JDK ont des performances strictement identiques depuis Java 21"
+    reponse: 1
+    explication: "Le bon réflexe en entretien senior est de faire correspondre le collecteur à l'objectif réel : débit (Parallel), compromis général (G1, le défaut), ou latence minimale (ZGC). Choisir un collecteur pour sa nouveauté plutôt que pour l'objectif de l'application est une erreur classique à identifier."
+    lecon: ramasse-miettes
+
+  - id: java-jvm-diagnostic-fuite
+    niveau: senior
+    theme: Diagnostiquer une fuite mémoire
+    type: ouverte
+    question: "Comment démarrez-vous le diagnostic d'une suspicion de fuite mémoire sur un service Java en production ?"
+    reponse: |
+      - Confirmer d'abord la tendance réelle : l'occupation du tas après chaque collecte majeure augmente-t-elle dans le temps (jstat -gcutil, ou suivi de -Xlog:gc), ou s'agit-il d'un simple pic de charge normal absorbé par le GC ?
+      - Une fois la tendance confirmée, capturer un premier instantané du tas (jcmd <pid> GC.heap_dump), laisser tourner, puis en capturer un second.
+      - Comparer les deux instantanés pour repérer les classes dont le nombre d'instances ou la taille retenue croît anormalement (histogramme de classes, ou outil d'analyse de heap dump).
+      - Pour les objets suspects, retrouver le chemin vers les racines (path to GC roots) qui explique pourquoi ils restent atteignables, puis corriger la référence responsable (cache sans éviction, écouteur non retiré, ThreadLocal non nettoyé...).
+    explication: "Un bon candidat structure sa réponse en étapes (confirmer, capturer, comparer, remonter aux racines, corriger) plutôt que de sauter directement à l'analyse d'un unique heap dump — et sait citer au moins deux causes classiques concrètes."
+    lecon: diagnostic-fuites

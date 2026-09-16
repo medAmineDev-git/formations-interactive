@@ -1,0 +1,107 @@
+questions:
+  - id: java-str-definition
+    niveau: confirme
+    theme: Comprendre un stream
+    type: ouverte
+    question: "Qu'est-ce qu'un stream en Java ? Est-ce une structure de données ?"
+    reponse: |
+      - Non : un stream **ne stocke rien**. C'est une abstraction qui décrit un calcul (filtrer, transformer, agréger) sur une séquence d'éléments lue à la demande depuis une source (collection, tableau, fichier, plage de nombres…).
+      - Un pipeline de stream a toujours trois parties : une **source**, zéro ou plusieurs **opérations intermédiaires** (paresseuses, elles renvoient un nouveau stream sans rien exécuter), et exactement une **opération terminale** qui déclenche réellement le parcours et produit un résultat.
+      - Sans opération terminale, un pipeline entier ne s'exécute jamais — ni erreur de compilation, ni exécution.
+      - Un stream se consomme une seule fois : le réutiliser après une opération terminale lève `IllegalStateException`.
+    explication: "Un bon candidat insiste sur l'absence de stockage et la paresse, deux points souvent confondus avec le comportement d'une collection. Faire préciser la différence entre collection.stream() (recrée un nouveau stream à chaque appel) et l'objet Stream lui-même (à usage unique)."
+    lecon: streams-bases
+
+  - id: java-str-consommation-unique
+    niveau: confirme
+    type: qcm
+    theme: Comprendre un stream
+    question: "Que se passe-t-il à l'exécution de ce code ?"
+    code: |
+      Stream<String> noms = List.of("Clavier", "Souris", "Écran").stream();
+      long nb = noms.count();
+      List<String> majuscules = noms.map(String::toUpperCase).toList();
+    choix:
+      - "majuscules contient [CLAVIER, SOURIS, ÉCRAN], sans problème"
+      - "IllegalStateException, car noms a déjà été consommé par count()"
+      - "nb vaut 0, car count() ne consomme pas réellement le stream"
+      - "Le code ne compile pas, un Stream ne peut pas être stocké dans une variable"
+    reponse: 1
+    explication: "count() est une opération terminale : elle consomme le stream noms. Toute opération ultérieure sur ce même objet Stream (ici map().toList()) lève IllegalStateException (\"stream has already been operated upon or closed\"). Pour retraiter les données, il faut repartir de la source avec un nouvel appel à .stream()."
+    lecon: streams-bases
+
+  - id: java-str-reduce-associatif
+    niveau: confirme
+    theme: Les opérations
+    type: ouverte
+    question: "À quoi servent les paramètres de reduce() ? Pourquoi l'opération doit-elle être associative ?"
+    reponse: |
+      - `reduce(identite, accumulateur)` combine tous les éléments du stream en une seule valeur : `identite` est la valeur de départ, neutre pour l'opération (0 pour une somme, "" pour une concaténation), et `accumulateur` combine la valeur courante avec chaque élément.
+      - L'opération doit être **associative** : le résultat ne doit pas dépendre de l'ordre dans lequel les sous-calculs sont regroupés. C'est indispensable dès qu'un stream **parallèle** entre en jeu, car le pool de threads combine des résultats partiels calculés sur des morceaux différents, dans un ordre non déterministe.
+      - La forme à trois arguments ajoute un **combineur**, utilisé pour fusionner des résultats partiels en parallèle ; en séquentiel, il n'est jamais appelé.
+      - Une opération non associative (comme la soustraction) donne un résultat instable en parallèle, alors qu'elle « semble » correcte en séquentiel.
+    explication: "Faire donner un contre-exemple concret (soustraction, division) plutôt qu'une définition abstraite de l'associativité : c'est ce qui distingue une compréhension réelle d'une réponse apprise par cœur."
+    lecon: operations
+
+  - id: java-str-gatherers-version
+    niveau: senior
+    theme: Les opérations
+    type: qcm
+    question: "Depuis quelle version du JDK Stream.gather() et les gatherers intégrés (java.util.stream.Gatherers) sont-ils finalisés ?"
+    choix:
+      - "JDK 21, en même temps que les threads virtuels"
+      - "JDK 24, via le JEP 485, après deux previews en JDK 22 et JDK 23"
+      - "JDK 25, la dernière version LTS en date"
+      - "Jamais : les gatherers sont toujours en preview au 16/09/2026"
+    reponse: 1
+    explication: "Les gatherers (opérations intermédiaires personnalisées à état) sont passés par deux previews — JEP 461 en JDK 22, JEP 473 en JDK 23 — avant leur finalisation sans changement majeur par le JEP 485 en JDK 24. Gatherers fournit notamment windowFixed, windowSliding, fold et scan, utilisables directement via stream.gather(...)."
+    lecon: operations
+
+  - id: java-str-groupingby-aval
+    niveau: confirme
+    theme: Les collecteurs
+    type: ouverte
+    question: "Comment groupingBy() fonctionne-t-il avec un collecteur en aval ? Donnez un exemple."
+    reponse: |
+      - `Collectors.groupingBy(classificateur)` seul produit une `Map<K, List<T>>` : chaque groupe est une liste des éléments correspondants.
+      - Un second argument, un **collecteur en aval**, change ce que contient chaque groupe au lieu de la liste brute : `groupingBy(Produit::categorie, Collectors.counting())` produit une `Map<String, Long>` (le nombre de produits par catégorie), `groupingBy(Produit::categorie, Collectors.summingDouble(Produit::prix))` produit le total des prix par catégorie.
+      - Les collecteurs en aval se composent : `groupingBy` peut être imbriqué pour une classification à plusieurs niveaux, ou combiné avec `mapping()`/`filtering()` pour transformer ou filtrer le contenu de chaque groupe avant de le collecter.
+      - Un troisième argument (un fournisseur de `Map`, comme `TreeMap::new`) permet de contrôler le type de `Map` renvoyée, par exemple pour trier les clés.
+    explication: "Un bon candidat sait illustrer avec au moins deux collecteurs en aval différents (counting, summingX ou mapping) et sait dire ce que produit groupingBy sans deuxième argument, pour montrer qu'il comprend le comportement par défaut."
+    lecon: collectors
+
+  - id: java-str-tomap-doublons
+    niveau: senior
+    theme: Les collecteurs
+    type: qcm
+    question: "Pourquoi ce code lève-t-il une exception à l'exécution ?"
+    code: |
+      record LigneCommande(String produit, int quantite) { }
+      List<LigneCommande> lignes = List.of(
+          new LigneCommande("Clavier", 1),
+          new LigneCommande("Clavier", 2));
+
+      Map<String, Integer> parProduit = lignes.stream()
+          .collect(Collectors.toMap(LigneCommande::produit, LigneCommande::quantite));
+    choix:
+      - "record ne peut pas être utilisé comme source d'un stream"
+      - "Deux lignes partagent la clé \"Clavier\" : toMap() à deux arguments lève IllegalStateException sur une clé en double, faute de fonction de fusion"
+      - "toMap() n'accepte que des clés de type Integer"
+      - "Aucune exception : parProduit contient {Clavier=2}, la dernière valeur écrase la précédente"
+    reponse: 1
+    explication: "Collectors.toMap(keyMapper, valueMapper) à deux arguments suppose des clés uniques et lève IllegalStateException (\"Duplicate key ...\") au premier conflit. Pour additionner les quantités du même produit, il faut la variante à trois arguments avec une fonction de fusion, par exemple toMap(LigneCommande::produit, LigneCommande::quantite, Integer::sum)."
+    lecon: collectors
+
+  - id: java-str-parallele-quand
+    niveau: senior
+    theme: Streams parallèles
+    type: ouverte
+    question: "Quand un stream parallèle apporte-t-il un vrai gain de performance, et quels sont les pièges les plus courants ?"
+    reponse: |
+      - Le gain n'est réel que si trois conditions sont réunies : un **grand volume** d'éléments, une opération **coûteuse en CPU** par élément, et une **source facile à découper** (`ArrayList`, tableau, `IntStream.range` — pas `LinkedList` ni `Files.lines`, coûteux ou impossibles à découper efficacement).
+      - `parallelStream()`/`parallel()` utilisent le **pool commun ForkJoin**, partagé par toute l'application (taille par défaut : nombre de cœurs disponibles − 1). Y bloquer des threads sur des appels réseau ou disque prive le reste de l'application de threads — les streams parallèles ciblent le calcul CPU-bound, pas l'attente d'E/S (pour ça, les threads virtuels du chapitre Concurrence sont mieux adaptés).
+      - Piège principal : les **effets de bord non sûrs**, comme écrire dans une `ArrayList` partagée depuis un `forEach` parallèle sans synchronisation — préférer `collect()`, qui fusionne les résultats partiels sans exposer d'état mutable partagé.
+      - Piège associé : un `reduce` avec une opération **non associative** donne un résultat imprévisible en parallèle, alors qu'il « semblait » correct en séquentiel.
+      - En résumé : mesurer plutôt que supposer, le surcoût de répartition/fusion peut dépasser le gain, surtout sur peu d'éléments.
+    explication: "Une réponse solide distingue clairement CPU-bound (bon candidat au parallélisme) et I/O-bound (mauvais candidat, mieux couvert par les threads virtuels) — une confusion fréquente chez les candidats qui pensent que parallelStream() accélère toujours les traitements."
+    lecon: parallele-pieges

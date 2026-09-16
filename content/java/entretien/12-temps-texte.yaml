@@ -1,0 +1,65 @@
+questions:
+  - id: java-temps-instant-vs-localdatetime
+    niveau: confirme
+    theme: Dates et fuseaux horaires
+    type: ouverte
+    question: "Pourquoi privilégier Instant plutôt que LocalDateTime pour horodater un événement destiné à être stocké en base de données ?"
+    reponse: |
+      - `LocalDateTime` ne porte **aucune information de fuseau** : « 14h30 » ne désigne pas le même instant selon qu'il a été produit à Paris ou à Tokyo, ce qui rend deux horodatages incomparables entre systèmes ou serveurs situés dans des fuseaux différents.
+      - `Instant` représente un point précis sur la ligne du temps en UTC, indépendant de tout fuseau : deux `Instant` sont toujours directement comparables, quel que soit l'endroit où ils ont été créés.
+      - Bonne pratique : stocker un `Instant` (ou l'équivalent UTC côté base de données), et ne convertir vers un fuseau local (`ZonedDateTime`) qu'au moment de l'affichage à l'utilisateur.
+      - Cela évite aussi les ambiguïtés liées aux changements d'heure d'été, qui n'affectent pas `Instant`.
+    explication: "Un bon candidat relie ce choix au piège classique : stocker du LocalDateTime revient à perdre silencieusement l'information de fuseau, un bug qui ne se voit qu'au moment où deux systèmes dans des fuseaux différents comparent leurs horodatages."
+    lecon: java-time
+
+  - id: java-temps-dst-gap
+    niveau: confirme
+    theme: Dates et fuseaux horaires
+    type: qcm
+    question: "En Europe, le dernier dimanche de mars, l'horloge locale saute de 2h00 à 3h00 (passage à l'heure d'été). Que fait ZonedDateTime.of(LocalDateTime.of(2027, 3, 28, 2, 30), ZoneId.of(\"Europe/Paris\")) si cette date tombe sur ce dimanche-là ?"
+    choix:
+      - "Elle lève une DateTimeException, car 2h30 n'existe pas ce jour-là dans ce fuseau"
+      - "Elle décale l'heure locale demandée de la durée de l'écart (le résultat devient 3h30, heure d'été)"
+      - "Elle ignore le fuseau et renvoie 2h30 UTC"
+      - "Elle renvoie 1h30, l'heure précédant le changement"
+    reponse: 1
+    explication: "ZonedDateTime.of ne lève pas d'exception face à une heure locale inexistante (dans le « trou » créé par le passage à l'heure d'été) : elle décale l'heure demandée en avant, de la durée de l'écart. Un candidat confirmé doit savoir que ce comportement, silencieux, peut fausser des calculs si on ne le connaît pas — d'où l'intérêt de raisonner en Instant/UTC pour des calculs, et de ne passer en heure locale qu'à l'affichage."
+    lecon: java-time
+
+  - id: java-temps-pattern-y-majuscule
+    niveau: confirme
+    theme: Formatage et locale
+    type: qcm
+    question: "Dans un motif DateTimeFormatter.ofPattern, quelle différence entre la lettre y et la lettre Y (majuscule) ?"
+    choix:
+      - "y désigne l'année civile classique ; Y désigne l'année de la semaine ISO-8601, qui peut différer de l'année civile en tout début ou toute fin d'année"
+      - "Aucune différence : les deux désignent l'année civile, Y est juste la casse utilisée historiquement"
+      - "y est utilisée pour le formatage (format), Y pour l'analyse (parse)"
+      - "Y désigne l'année sur 2 chiffres, y l'année sur 4 chiffres"
+    reponse: 0
+    explication: "Confondre y et Y est un piège classique et documenté : Y (année de semaine ISO) peut afficher une année différente de celle attendue pour une date proche du 1er janvier ou du 31 décembre, alors que le mois et le jour affichés, eux, restent ceux de l'année civile — un décalage incohérent facile à ne pas remarquer en relecture rapide."
+    lecon: formatage-i18n
+
+  - id: java-temps-regex-compilation
+    niveau: confirme
+    theme: Expressions régulières
+    type: ouverte
+    question: "Pourquoi compiler un Pattern une seule fois plutôt que d'appeler String.matches() dans une boucle ? Quel autre risque de performance existe avec les expressions régulières ?"
+    reponse: |
+      - `String.matches(regex)` (comme `replaceAll`/`split` avec un regex) recompile le motif **à chaque appel** : dans une boucle, ce coût de compilation se répète inutilement, alors qu'un `Pattern` compilé une seule fois (champ `static final`) peut être réutilisé pour créer un `Matcher` par appel, sans recompiler.
+      - Autre risque, indépendant du nombre d'appels : le **backtracking catastrophique**. Des quantificateurs imbriqués sur une même portion de texte (ex. `(a+)+b`) peuvent faire exploser le temps d'exécution (souvent exponentiel) sur certaines entrées qui ne correspondent pas entièrement au motif.
+      - Ce second risque est particulièrement dangereux si le motif est appliqué à une entrée fournie par un utilisateur non fiable : c'est une vulnérabilité de déni de service (ReDoS), pas seulement un problème de style.
+    explication: "Un bon candidat distingue les deux problèmes : un coût de compilation évitable (facile à corriger), et un risque algorithmique intrinsèque au motif lui-même (à éviter dès l'écriture du regex, notamment sur des entrées non fiables)."
+    lecon: regex
+
+  - id: java-temps-regex-ou-java-time
+    niveau: confirme
+    theme: Dates, texte et formats
+    type: ouverte
+    question: "Comment valider qu'une chaîne saisie par un utilisateur au format « jj/mm/aaaa » représente bien une date calendaire valide, et pas seulement une chaîne bien formée ?"
+    reponse: |
+      - Une expression régulière comme `\\d{2}/\\d{2}/\\d{4}` valide seulement la **forme** (deux chiffres, une barre, deux chiffres...) : elle accepterait « 31/02/2026 » alors que février n'a jamais 31 jours.
+      - La validation de la **validité calendaire** (jours par mois, années bissextiles...) revient à `java.time` : tenter `LocalDate.parse(saisie, DateTimeFormatter.ofPattern("dd/MM/yyyy"))` et intercepter `DateTimeParseException` si la date n'existe pas.
+      - Une bonne approche combine les deux quand c'est utile : une regex légère pour rejeter rapidement une saisie manifestement mal formée (évite de lever une exception coûteuse pour du texte n'ayant aucun rapport avec une date), puis `LocalDate.parse` pour la validation calendaire réelle.
+    explication: "Ce qui distingue un bon candidat : comprendre qu'une regex ne « connaît » pas le calendrier (elle ne sait pas que février a 28 ou 29 jours), et que java.time.parse fait cette vérification pour de vrai — un piège fréquent est de croire qu'une regex bien conçue suffit à valider une date."
+    lecon: java-time

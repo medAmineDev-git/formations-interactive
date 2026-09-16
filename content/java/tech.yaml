@@ -1,0 +1,103 @@
+nom: Java
+icone: ☕
+couleur: "#e76f00"
+description: Le langage et sa plateforme, des bases jusqu'à la JVM, la concurrence et les fonctionnalités modernes.
+
+chapitres:
+  # ---------- Débutant ----------
+  - id: bases
+    niveau: debutant
+    titre: Les bases du langage
+    description: JDK et JVM, types, opérateurs, structures de contrôle, tableaux et chaînes.
+
+  - id: poo
+    niveau: debutant
+    titre: Programmation orientée objet
+    description: Classes et objets, encapsulation, héritage, polymorphisme, interfaces.
+
+  - id: poo-avancee
+    niveau: debutant
+    titre: Aller plus loin en objet
+    description: Records, énumérations, classes internes, égalité et comparaison.
+
+  - id: exceptions
+    niveau: debutant
+    titre: Les exceptions
+    description: Exceptions vérifiées ou non, try-with-resources, exceptions métier, bonnes pratiques.
+
+  - id: collections
+    niveau: debutant
+    titre: Les collections
+    description: List, Set, Map, choisir la bonne implémentation, itération, tri et immuabilité.
+
+  - id: outils
+    niveau: debutant
+    titre: Organisation et outils
+    description: Packages et classpath, Maven, premiers tests, débogage et jshell.
+
+  # ---------- Intermédiaire ----------
+  - id: fonctionnel
+    niveau: intermediaire
+    titre: Programmation fonctionnelle
+    description: Lambdas, interfaces fonctionnelles, références de méthode et Optional.
+
+  - id: streams
+    niveau: intermediaire
+    titre: Les streams
+    description: Pipelines, opérations intermédiaires et terminales, collecteurs, parallélisme.
+
+  - id: generiques
+    niveau: intermediaire
+    titre: Les génériques
+    description: Types paramétrés, jokers et PECS, effacement de type et ses conséquences.
+
+  - id: io-fichiers
+    niveau: intermediaire
+    titre: Entrées/sorties et fichiers
+    description: API Path et Files, lecture et écriture, JSON, sérialisation.
+
+  - id: concurrence
+    niveau: intermediaire
+    titre: La concurrence
+    description: Threads, modèle mémoire, exécuteurs, CompletableFuture, collections concurrentes, threads virtuels.
+
+  - id: temps-texte
+    niveau: intermediaire
+    titre: Dates, texte et formats
+    description: API java.time, formatage et internationalisation, expressions régulières.
+
+  - id: tests-qualite
+    niveau: intermediaire
+    titre: Tests et qualité
+    description: JUnit 5, doubles de test avec Mockito, couverture et conventions de code.
+
+  # ---------- Avancé ----------
+  - id: jvm-memoire
+    niveau: avance
+    titre: La JVM et la mémoire
+    description: Architecture, chargement des classes, zones mémoire, ramasse-miettes, diagnostic des fuites.
+
+  - id: performance
+    niveau: avance
+    titre: Performance
+    description: Mesurer avant d'optimiser, JMH, compilation à la volée, pièges courants.
+
+  - id: conception
+    niveau: avance
+    titre: Conception et patterns
+    description: Principes SOLID et patterns utiles, revisités avec les fonctionnalités modernes du langage.
+
+  - id: java-moderne
+    niveau: avance
+    titre: Java moderne
+    description: Filtrage par motif, classes scellées, records avancés et nouveautés des versions récentes.
+
+  - id: modules-deploiement
+    niveau: avance
+    titre: Modules et déploiement
+    description: Système de modules, jlink et jpackage, JVM en conteneur, image native.
+
+  - id: securite-robustesse
+    niveau: avance
+    titre: Sécurité et robustesse
+    description: Validation des entrées, cryptographie de base, dépendances vulnérables, immuabilité.

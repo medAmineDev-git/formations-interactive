@@ -1,0 +1,96 @@
+# Questions d'entretien Java — chapitre Sécurité et robustesse
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: java-sec-injection-log
+    niveau: confirme
+    theme: Valider les entrées
+    type: qcm
+    question: "Ce code journalise une tentative de connexion échouée à partir d'un champ de formulaire non validé. Quel est le risque ?"
+    code: |
+      String nomUtilisateur = requete.getParameter("login");
+      logger.info("Échec de connexion pour l'utilisateur : " + nomUtilisateur);
+    choix:
+      - "Une valeur contenant des sauts de ligne permet d'injecter de faux enregistrements dans le journal, ce qui peut tromper une analyse a posteriori ou masquer une action malveillante"
+      - "Aucun risque : `Logger` échappe automatiquement tout caractère spécial avant écriture"
+      - "Le code ne compile pas, `logger.info` n'accepte pas la concaténation de chaînes"
+      - "Le seul risque est une `NullPointerException` si `nomUtilisateur` est absent du formulaire"
+    reponse: 0
+    explication: "Écrire directement une entrée externe dans un journal, sans limite ni filtrage, permet une injection de log : un attaquant qui glisse un saut de ligne dans le champ peut fabriquer une ligne de journal qui ressemble à un événement légitime. Un bon réflexe en entretien est aussi de rappeler qu'il ne faut jamais loguer de donnée sensible (mot de passe, moyen de paiement), même partiellement."
+    lecon: validation-entrees
+
+  - id: java-sec-deserialisation-risque
+    niveau: senior
+    theme: Désérialisation
+    type: ouverte
+    question: "Une fonctionnalité permet à un client de télécharger un panier sauvegardé, sous forme d'un flux binaire produit par la sérialisation Java native, pour le réimporter plus tard. Quels sont les risques, et comment les limiter sans tout réécrire ?"
+    reponse: |
+      - Le fichier téléchargé peut être modifié par le client avant réimport : c'est un flux dont l'origine n'est plus totalement maîtrisée.
+      - Désérialiser ce flux avec `ObjectInputStream` sans précaution peut instancier des classes arbitraires présentes sur le classpath, dans un ordre choisi par l'attaquant, avant même que la logique métier ne s'exécute.
+      - Un `ObjectInputFilter` restreignant explicitement les classes acceptées (liste d'autorisation limitée aux classes du panier) réduit fortement ce risque sans nécessiter de refonte complète.
+      - À plus long terme, remplacer la sérialisation native par un format sans exécution de code au parsing (JSON) est la solution la plus robuste pour tout nouveau développement.
+    explication: "Un bon candidat distingue le risque théorique (n'importe quel flux binaire est suspect) du risque concret propre à `ObjectInputStream` : la reconstruction d'objet peut exécuter du code, pas seulement lire des données. Mentionner qu'on peut agir progressivement (filtre) avant une migration complète (JSON) montre une compréhension pragmatique, pas seulement dogmatique."
+    lecon: validation-entrees
+
+  - id: java-sec-char-mdp
+    niveau: confirme
+    theme: Cryptographie et secrets
+    type: qcm
+    question: "Pourquoi cette méthode de connexion prend-elle un `char[]` en paramètre plutôt qu'un `String` ?"
+    code: |
+      public boolean seConnecter(String identifiant, char[] motDePasse) {
+          try {
+              return authentificateur.verifier(identifiant, motDePasse);
+          } finally {
+              Arrays.fill(motDePasse, '\0');
+          }
+      }
+    choix:
+      - "Un `char[]` peut être explicitement écrasé (`Arrays.fill`) dès qu'il n'est plus utile, alors qu'un `String` immuable reste en mémoire sans pouvoir être effacé tant que le ramasse-miettes ne l'a pas collecté"
+      - "`String` ne peut techniquement pas contenir de mot de passe de plus de 8 caractères"
+      - "`char[]` est plus rapide à comparer que `String` avec `equals`, c'est uniquement une question de performance"
+      - "C'est une convention purement stylistique, sans différence de comportement réelle entre les deux types"
+    reponse: 0
+    explication: "L'argument n'est pas la performance mais la durée de vie en mémoire : un `String`, immuable, ne peut pas être vidé de son contenu et peut persister (cache de chaînes, cliché mémoire) au-delà du moment où il n'est plus nécessaire. Un `char[]` permet de l'écraser explicitement dès qu'il n'est plus utile, ce que les API sensibles du JDK privilégient pour un mot de passe."
+    lecon: crypto-secrets
+
+  - id: java-sec-condensat-chiffrement-signature
+    niveau: senior
+    theme: Cryptographie et secrets
+    type: ouverte
+    question: "Quelle est la différence entre un condensat (hash), un chiffrement et une signature ? Donnez un exemple d'usage pour chacun dans une application de boutique en ligne."
+    reponse: |
+      - Condensat : transformation non réversible, sans clé, qui produit une empreinte de taille fixe. Exemple : vérifier qu'un fichier d'export de commandes téléchargé n'a pas été corrompu, ou stocker un mot de passe sous une forme lente et salée (PBKDF2, bcrypt, Argon2), jamais en clair.
+      - Chiffrement : rend une donnée illisible sans la clé correspondante, mais réversible avec elle. Exemple : chiffrer un numéro de compte bancaire stocké en base, pour qu'il reste illisible en cas de fuite de la base sans la clé.
+      - Signature : garantit qu'une donnée provient bien du détenteur d'une clé privée et n'a pas été modifiée depuis, vérifiable par tout détenteur de la clé publique correspondante. Exemple : signer un jeton d'authentification ou un webhook de confirmation de paiement pour que le destinataire puisse vérifier son authenticité.
+    explication: "En entretien, la confusion la plus fréquente est entre condensat et chiffrement : un condensat n'a pas de clé et n'est jamais destiné à être 'déchiffré'. Savoir situer chacun sur un cas boutique concret montre une compréhension appliquée, pas seulement des définitions apprises par cœur."
+    lecon: crypto-secrets
+
+  - id: java-sec-cve-transitive
+    niveau: confirme
+    theme: Dépendances et robustesse
+    type: ouverte
+    question: "Un outil d'analyse de dépendances signale une CVE connue sur une bibliothèque de traitement d'images, utilisée uniquement de façon transitive par le module d'import de photos produit de la boutique. Comment réagir ?"
+    reponse: |
+      - Vérifier d'abord si une version corrigée de la dépendance directe qui l'introduit est disponible, et lire ses notes de version avant de monter en version (risque de changement de comportement).
+      - Si aucune mise à jour de la dépendance directe n'est disponible rapidement, imposer explicitement une version corrigée de la bibliothèque transitive via la gestion des versions imposées (`dependencyManagement` en Maven, contraintes en Gradle).
+      - Vérifier que la version imposée reste compatible avec l'API attendue par la dépendance directe, pour ne pas casser silencieusement une fonctionnalité.
+      - Documenter la correction et la suivre dans le temps : ce n'est pas une exception à traiter une fois pour toutes, la bibliothèque directe finira par publier une mise à jour qui intègre nativement le correctif.
+    explication: "Le bon réflexe attendu en entretien est de ne pas se contenter de « ce n'est pas nous qui l'avons choisie » : une dépendance transitive vulnérable reste une vulnérabilité de l'application. Savoir qu'on peut agir dessus sans attendre la dépendance directe (via la gestion des versions imposées) est le point clé."
+    lecon: dependances-robustesse
+
+  - id: java-sec-pool-non-borne
+    niveau: senior
+    theme: Robustesse
+    type: qcm
+    question: "Le service d'import de fichiers de la boutique traite chaque fichier reçu dans une tâche soumise à `Executors.newCachedThreadPool()`, sans autre limite. Un pic soudain de fichiers reçus (import massif, ou simplement beaucoup d'utilisateurs simultanés) fait quoi de ce service ?"
+    choix:
+      - "Le pool crée un nouveau thread pour chaque tâche sans limite haute, ce qui peut épuiser la mémoire ou les threads du système et dégrader l'ensemble de l'application, pas seulement l'import"
+      - "`newCachedThreadPool` refuse automatiquement les tâches au-delà d'un seuil raisonnable de sécurité"
+      - "Le comportement ne change pas : la JVM limite nativement le nombre total de threads d'une application à 100"
+      - "Le pic est absorbé sans conséquence car les threads inactifs sont immédiatement recyclés en cas de charge"
+    reponse: 0
+    explication: "`Executors.newCachedThreadPool()` n'a pas de limite haute sur le nombre de threads : sous forte charge, il peut en créer un très grand nombre, avec un coût mémoire et de changement de contexte qui dégrade toute l'application, au-delà du seul service d'import. La bonne pratique est un pool avec une limite haute explicite et une file bornée, avec une politique de repli définie plutôt que d'espérer que la charge reste toujours raisonnable."
+    lecon: dependances-robustesse

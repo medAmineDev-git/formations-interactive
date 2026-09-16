@@ -1,0 +1,79 @@
+# Questions d'entretien Java — chapitre « Organisation et outils »
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: java-out-package
+    niveau: junior
+    theme: Packages et classpath
+    type: ouverte
+    question: "Qu'est-ce qu'un package en Java, et quelle convention suit son nom ?"
+    reponse: |
+      - Un package regroupe des classes apparentées et évite les collisions de noms entre classes portant le même nom simple.
+      - Son nom suit la convention du **nom de domaine inversé**, tout en minuscules : `com.boutique.produit`.
+      - Le nom du package doit correspondre exactement à l'arborescence des dossiers du projet (`com/boutique/produit/`).
+    lecon: packages-classpath
+
+  - id: java-out-classpath-erreur
+    niveau: junior
+    theme: Packages et classpath
+    type: qcm
+    question: "Un programme compile sans erreur mais plante au lancement avec `NoClassDefFoundError`. Que faut-il vérifier en priorité ?"
+    choix:
+      - "Que la classe ne contient pas de faute de syntaxe"
+      - "Que le classpath d'exécution contient bien toutes les dépendances présentes à la compilation"
+      - "Que la méthode `main` est bien déclarée `public static void`"
+      - "Que le fichier source porte le même nom que la classe publique qu'il contient"
+    reponse: 1
+    explication: "`NoClassDefFoundError` signifie que la classe était visible à la compilation (sinon la compilation aurait échoué) mais introuvable à l'exécution : le classpath d'exécution diffère de celui utilisé pour compiler, typiquement un jar de dépendance manquant au déploiement."
+    lecon: packages-classpath
+
+  - id: java-out-maven-scope
+    niveau: junior
+    theme: Construire avec Maven
+    type: ouverte
+    question: "Quelle différence entre les portées `compile`, `provided`, `runtime` et `test` d'une dépendance Maven ?"
+    reponse: |
+      - `compile` (par défaut) : disponible à la compilation, aux tests, et incluse dans le livrable final.
+      - `provided` : disponible à la compilation et aux tests, mais absente du livrable — l'environnement cible doit déjà la fournir (ex. l'API Servlet d'un serveur d'applications).
+      - `runtime` : absente à la compilation, disponible seulement à l'exécution et dans le livrable (ex. un pilote JDBC utilisé via une interface).
+      - `test` : disponible uniquement pour compiler et exécuter les tests, jamais incluse dans le livrable (ex. JUnit, Mockito).
+    lecon: maven
+
+  - id: java-out-maven-conflit
+    niveau: confirme
+    theme: Construire avec Maven
+    type: ouverte
+    question: "Deux dépendances transitives apportent deux versions différentes de la même librairie. Comment Maven résout-il ce conflit, et comment le diagnostiquer ?"
+    reponse: |
+      - Maven applique la stratégie du **chemin le plus court** (« nearest wins ») dans l'arbre des dépendances ; à profondeur égale, la première déclarée l'emporte.
+      - La version écartée n'est pas signalée par une erreur : le build continue avec la version retenue, ce qui peut provoquer un bug silencieux si l'API a changé entre les deux versions.
+      - `mvn dependency:tree` affiche l'arbre complet et marque les versions écartées (« omitted for conflict »), ce qui permet de diagnostiquer le conflit avant de forcer une version précise via `<dependencyManagement>` ou une `<exclusion>`.
+    explication: "En entretien, on attend surtout que le candidat sache que ce n'est pas « la plus récente » qui gagne automatiquement, et qu'il connaisse le réflexe `dependency:tree` pour investiguer."
+    lecon: maven
+
+  - id: java-out-test-aaa
+    niveau: junior
+    theme: Écrire ses premiers tests
+    type: ouverte
+    question: "Comment structure-t-on un test unitaire avec JUnit, et à quoi sert `@BeforeEach` ?"
+    reponse: |
+      - Un test suit la structure **Arrange / Act / Assert** : préparer les données et objets nécessaires, appeler le code testé, puis vérifier le résultat avec une assertion.
+      - `@Test` marque la méthode comme test exécutable.
+      - `@BeforeEach` exécute une méthode avant **chaque** test de la classe, pour repartir d'un état initial commun sans dupliquer l'initialisation dans chaque méthode de test.
+    lecon: premiers-tests
+
+  - id: java-out-pile-appel
+    niveau: junior
+    theme: Déboguer et expérimenter
+    type: qcm
+    question: "Face à une pile d'appels (stack trace) longue, quelle est la meilleure façon de localiser rapidement la cause du bug ?"
+    choix:
+      - "Lire la pile de bas en haut, en partant de la méthode `main`"
+      - "Lire le type et le message d'exception en haut, puis chercher la première ligne qui pointe vers son propre code plutôt que vers le JDK ou une librairie"
+      - "Ignorer le message d'exception et se concentrer uniquement sur les numéros de ligne"
+      - "Relancer le programme plusieurs fois jusqu'à obtenir une pile différente"
+    reponse: 1
+    explication: "Le haut de la pile donne le type et le message de l'exception, souvent suffisants pour comprendre le problème. Les frames suivantes montrent la chaîne d'appels : la première qui appartient à son propre code (pas au JDK ni à une librairie tierce) est en général le point de départ le plus utile pour corriger le bug."
+    lecon: debug-jshell

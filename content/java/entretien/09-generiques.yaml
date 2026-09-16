@@ -1,0 +1,84 @@
+questions:
+  - id: java-gen-pourquoi
+    niveau: confirme
+    theme: Écrire du code générique
+    type: ouverte
+    question: "À quel problème répondent les génériques, et comment le résolvent-ils ?"
+    reponse: |
+      - Avant Java 5, une collection stockait des `Object` : tout transtypage à la lecture était un pari, non vérifié par le compilateur. Une incohérence de type ne se révélait qu'à l'exécution, en `ClassCastException`.
+      - Les génériques déclarent le type attendu dans la signature elle-même (`List<Produit>`), et déplacent la vérification à la **compilation** : le compilateur refuse d'y insérer autre chose, et insère les casts nécessaires automatiquement à la lecture.
+      - Le prix : les paramètres de type ne survivent pas à l'exécution (effacement de type), avec des conséquences concrètes développées dans le reste du chapitre.
+    explication: "Un bon candidat relie le problème (ClassCastException tardive avec les types bruts) à la solution (vérification anticipée), sans se contenter de dire « ça type les collections »."
+    lecon: generiques-bases
+
+  - id: java-gen-invariance
+    niveau: confirme
+    theme: Écrire du code générique
+    type: qcm
+    question: "Pourquoi ce code ne compile-t-il pas ?"
+    code: |
+      List<Integer> entiers = new ArrayList<>();
+      List<Number> nombres = entiers;
+    choix:
+      - "Les types génériques sont invariants : List<Integer> n'est pas un sous-type de List<Number>, même si Integer hérite de Number"
+      - "Integer ne peut jamais être stocké dans une List, seul Number le peut"
+      - "Il manque l'opérateur diamant sur la déclaration de entiers"
+      - "C'est une erreur de nommage : la variable devrait s'appeler nombresEntiers"
+    reponse: 0
+    explication: "Si l'affectation compilait, nombres.add(3.14) serait valide (un Double est un Number) sur une référence qui pointe en réalité vers une List<Integer> — une pollution de type. L'invariance des génériques empêche ce scénario dès la compilation ; les jokers (? extends, ? super) offrent une flexibilité contrôlée sans réintroduire ce risque."
+    lecon: generiques-bases
+
+  - id: java-gen-pecs
+    niveau: confirme
+    theme: Les jokers et PECS
+    type: ouverte
+    question: "Qu'est-ce que le principe PECS, et où l'observe-t-on dans la bibliothèque standard ?"
+    reponse: |
+      - PECS : *Producer Extends, Consumer Super*. Un paramètre dont on ne fait que **lire** des valeurs (un producteur) se type en `? extends T` ; un paramètre dans lequel on ne fait qu'**écrire** (un consommateur) se type en `? super T`.
+      - Exemple canonique : `Collections.copy(List<? super T> dest, List<? extends T> src)` — src produit des T qu'on lit, dest consomme des T qu'on y écrit.
+      - Même logique dans `Function<? super T, ? extends R>`, utilisée par `Stream.map` et `Comparator.comparing` : l'entrée de la fonction est consommée (super), sa sortie est produite (extends).
+    explication: "Faire vérifier que le candidat sait dire, pour un paramètre donné, s'il joue le rôle de producteur ou de consommateur avant de choisir le joker — c'est le vrai critère, pas une règle à appliquer mécaniquement."
+    lecon: jokers-pecs
+
+  - id: java-gen-extends-add
+    niveau: junior
+    theme: Les jokers et PECS
+    type: qcm
+    question: "Que se passe-t-il à la compilation de ce code ?"
+    code: |
+      List<? extends Number> nombres = new ArrayList<Integer>();
+      nombres.add(10);
+    choix:
+      - "Erreur de compilation sur add(10) : le type réel de la liste (peut-être une List<Double>) est inconnu, ajouter un Integer n'est pas garanti sûr"
+      - "Ça compile normalement, 10 est autoboxé en Integer"
+      - "Ça compile mais lève une ClassCastException à l'exécution de add(10)"
+      - "Erreur de compilation dès la déclaration de nombres, avant même add(10)"
+    reponse: 0
+    explication: "? extends Number signifie « Number ou une sous-classe inconnue » : le compilateur ne peut garantir qu'ajouter un Integer est valide pour le type réel caché derrière le joker. La lecture reste possible (les éléments sont forcément des Number), mais toute écriture (hors null) est refusée."
+    lecon: jokers-pecs
+
+  - id: java-gen-erasure-instanceof
+    niveau: senior
+    theme: Effacement de type et ses conséquences
+    type: qcm
+    question: "Pourquoi `if (objet instanceof List<String>)` ne compile-t-il pas, alors que `if (objet instanceof List<?>)` compile ?"
+    choix:
+      - "List<String> n'est pas un type réifiable : l'effacement de type supprime le paramètre <String> à l'exécution, la JVM ne peut donc pas le tester. List<?>, joker non borné, reste réifiable"
+      - "instanceof ne peut jamais être utilisé avec des interfaces génériques, quel que soit le paramètre"
+      - "C'est une limitation arbitraire du compilateur sans rapport avec l'exécution"
+      - "List<String> nécessiterait d'abord un cast explicite en (List<String>) avant le test instanceof"
+    reponse: 0
+    explication: "L'effacement de type fait que List<String> et List<Integer> produisent le même .class à l'exécution : la JVM n'a plus l'information nécessaire pour distinguer l'un de l'autre via instanceof. Seuls les types réifiables (types bruts, types paramétrés par un joker non borné) sont testables par instanceof."
+    lecon: effacement-limites
+
+  - id: java-gen-safevarargs
+    niveau: senior
+    theme: Effacement de type et ses conséquences
+    type: ouverte
+    question: "Qu'est-ce que la pollution du tas (heap pollution) avec des varargs génériques, et à quoi sert @SafeVarargs ?"
+    reponse: |
+      - Une méthode variadique à paramètre de type générique (`static <T> void m(T... elements)`) crée en réalité un tableau `T[]` au moment de l'appel. À cause de l'effacement, ce tableau est vu comme un `Object[]` : y insérer un élément d'un type incompatible compile sans erreur, mais casse la cohérence du tableau — c'est la pollution du tas.
+      - L'incohérence ne se révèle qu'à l'exécution, en `ClassCastException`, souvent loin de sa cause réelle.
+      - `@SafeVarargs`, posée sur une méthode `static`, `final`, `private`, ou un constructeur, supprime l'avertissement du compilateur : c'est une promesse du développeur que la méthode ne fait rien d'incorrect avec ce tableau (pas d'écriture depuis l'extérieur, pas de fuite de sa référence), pas une vérification automatique.
+    explication: "Un bon candidat précise que @SafeVarargs ne prouve rien : elle désactive juste l'avertissement, sous la responsabilité du développeur. Mentionner pourquoi elle est réservée aux méthodes non redéfinissables (static, final, private, constructeurs) est un signe de compréhension plus fine."
+    lecon: effacement-limites

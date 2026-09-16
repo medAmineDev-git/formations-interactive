@@ -1,0 +1,110 @@
+# Questions d'entretien — Programmation fonctionnelle
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: java-fonc-lambdas-capture
+    niveau: confirme
+    theme: Lambdas
+    type: ouverte
+    question: "Pourquoi une lambda ne peut-elle capturer qu'une variable locale effectivement finale ? Que se passe-t-il concrètement au moment de la capture ?"
+    reponse: |
+      - Une variable locale « effectivement finale » est une variable jamais réassignée après son initialisation, même sans le mot-clé `final`.
+      - La lambda capture la **valeur** de la variable au moment de sa création, pas une référence vivante vers son emplacement mémoire — contrairement à un champ d'instance, qu'elle pourrait lire à tout moment avec sa valeur courante.
+      - Autoriser la capture d'une variable réassignable créerait une incohérence : la lambda pourrait s'exécuter (notamment dans un autre thread, ou plus tard) après que la variable a changé de valeur dans la méthode d'origine, dont le cadre d'exécution a pourtant disparu. Le compilateur interdit donc toute lambda qui capture une variable réassignée ailleurs.
+      - Pour un objet mutable capturé (une `List`, par exemple), c'est la référence qui est capturée par valeur ; l'objet pointé reste mutable et ses changements restent visibles depuis la lambda.
+    lecon: lambdas
+
+  - id: java-fonc-lambdas-this
+    niveau: confirme
+    theme: Lambdas
+    type: qcm
+    question: "Dans une lambda définie à l'intérieur d'une méthode d'instance, que désigne `this` ?"
+    code: |
+      public class ServiceCommande {
+          private String nom = "ServiceCommande";
+
+          public Runnable creerTache() {
+              return () -> System.out.println(this.nom);
+          }
+      }
+    choix:
+      - "L'instance de ServiceCommande qui a créé la lambda, exactement comme n'importe quel autre code de la méthode creerTache"
+      - "Une nouvelle instance anonyme représentant la lambda elle-même"
+      - "null, car les lambdas n'ont pas de contexte this"
+      - "L'instance de Runnable retournée par la méthode"
+    reponse: 0
+    explication: "Une lambda n'introduit pas de nouvelle portée pour `this` : elle n'est pas une classe séparée avec sa propre instance. `this` reste celui du contexte englobant, ici l'instance de `ServiceCommande`. C'est la différence de fonctionnement principale avec une classe anonyme, qui définit une véritable instance avec son propre `this`."
+    lecon: lambdas
+
+  - id: java-fonc-interfaces-composition
+    niveau: confirme
+    theme: Interfaces fonctionnelles
+    type: ouverte
+    question: "Comment combiner plusieurs `Predicate` ou plusieurs `Function` sans réécrire une nouvelle lambda ? Donnez un exemple."
+    reponse: |
+      - `Predicate<T>` fournit `and`, `or` et `negate` : `Predicate<Produit> disponibleEnPromo = enStock.and(enPromo);` combine deux conditions existantes sans dupliquer leur logique.
+      - `Function<T,R>` fournit `andThen` (enchaîner après le résultat courant) et `compose` (enchaîner avant, sur l'entrée) : `nettoyer.andThen(majuscules)` applique d'abord `nettoyer`, puis `majuscules` sur le résultat ; `nettoyer.compose(majuscules)` applique l'ordre inverse.
+      - L'intérêt : nommer chaque comportement élémentaire (`enStock`, `enPromo`) et les combiner par lecture directe (`enStock.and(enPromo)`) plutôt que d'écrire une lambda qui réimplémente la même logique en un seul bloc, moins réutilisable et moins lisible.
+    lecon: interfaces-fonctionnelles
+
+  - id: java-fonc-interfaces-exceptions
+    niveau: confirme
+    theme: Interfaces fonctionnelles
+    type: qcm
+    question: "Pourquoi ce code ne compile-t-il pas, et quelle est la solution la plus courante ?"
+    code: |
+      Function<String, byte[]> lireFichier = chemin -> Files.readAllBytes(Path.of(chemin));
+      // Files.readAllBytes déclare : throws IOException
+    choix:
+      - "La méthode abstraite apply(T) de Function ne déclare throws aucune exception vérifiée ; il faut attraper IOException dans le corps de la lambda et la relancer en exception non vérifiée (par exemple UncheckedIOException)"
+      - "Files.readAllBytes n'existe pas, il faut utiliser FileReader"
+      - "Function ne peut pas retourner un tableau de byte"
+      - "Il manque un bloc try-with-resources autour de l'appel à Function"
+    reponse: 0
+    explication: "Aucune interface de java.util.function ne déclare d'exception vérifiée dans sa méthode abstraite : une lambda qui l'implémente ne peut donc pas laisser une exception vérifiée s'échapper telle quelle. La solution la plus courante est de l'attraper et de l'envelopper dans une exception non vérifiée, ou de définir sa propre interface fonctionnelle dont la méthode déclare explicitement l'exception."
+    lecon: interfaces-fonctionnelles
+
+  - id: java-fonc-references-formes
+    niveau: confirme
+    theme: Références de méthode
+    type: ouverte
+    question: "Quelles sont les quatre formes de référence de méthode ? Donnez un exemple de chacune."
+    reponse: |
+      - **Méthode statique** — `Classe::methodeStatique`, ex. `Integer::parseInt` dans un `Function<String,Integer>`.
+      - **Méthode d'instance d'un objet particulier** — `objet::methode`, ex. `System.out::println` dans un `Consumer<String>` : l'objet (`System.out`) est fixé au moment de la référence.
+      - **Méthode d'instance d'un type quelconque** — `Type::methode`, ex. `String::toUpperCase` dans un `Function<String,String>` : le premier paramètre reçu devient le récepteur de l'appel.
+      - **Constructeur** — `Classe::new`, ex. `Produit::new` dans un `Function<String,Produit>` s'il existe un constructeur `Produit(String)`.
+      - Dans tous les cas, la référence n'est qu'un raccourci syntaxique pour la lambda équivalente qui se contenterait d'appeler cette méthode ou ce constructeur.
+    lecon: references-methode
+
+  - id: java-fonc-optional-orelse
+    niveau: confirme
+    theme: Optional
+    type: qcm
+    question: "Quelle est la différence entre `orElse` et `orElseGet`, et pourquoi ce détail peut-il causer un bug de performance silencieux ?"
+    code: |
+      Optional<Produit> produit = depot.chercherParId("p1"); // supposons non vide
+      Produit resultat = produit.orElse(chargerProduitParDefautDepuisReseau());
+    choix:
+      - "orElse évalue toujours son argument, même quand l'Optional contient déjà une valeur, car l'argument est calculé avant l'appel de la méthode ; ici chargerProduitParDefautDepuisReseau() s'exécute inutilement à chaque appel"
+      - "orElse et orElseGet sont strictement équivalents, seule la syntaxe change"
+      - "orElseGet lève une exception si l'Optional est vide, contrairement à orElse"
+      - "orElse ne fonctionne qu'avec des types primitifs"
+    reponse: 0
+    explication: "orElse(x) évalue x comme n'importe quel argument de méthode, donc avant même que la méthode ne regarde si l'Optional est vide. Si x est un appel coûteux (réseau, base de données) et que l'Optional est déjà rempli la plupart du temps, ce coût est payé inutilement à chaque appel. orElseGet(supplier) n'invoque le Supplier que si l'Optional est réellement vide."
+    lecon: optional
+
+  - id: java-fonc-optional-usage
+    niveau: confirme
+    theme: Optional
+    type: ouverte
+    question: "Quel est l'usage prévu d'Optional, et quels sont les usages à éviter ? Pourquoi ?"
+    reponse: |
+      - **Usage prévu** : type de **retour** d'une méthode qui peut ne rien trouver, pour que la signature elle-même impose à l'appelant de traiter le cas d'absence.
+      - **Champ de classe** : à éviter — le champ Optional peut lui-même être `null`, ce qui ne résout rien, et `Optional` n'implémente pas `Serializable`, ce qui provoque une erreur si la classe est sérialisée.
+      - **Paramètre de méthode** : à éviter — alourdit l'appel sans bénéfice net ; une surcharge de méthode, ou `null` documenté, est généralement préférable.
+      - **Élément de collection (`List<Optional<T>>`)** : à éviter — une collection sait déjà représenter l'absence (élément filtré, liste vide).
+      - **Retour d'une méthode censée renvoyer une collection** : préférer une collection **vide** à `Optional<Collection<T>>` — les collections ont déjà leur propre notion de « rien », ce qui évite un double déballage à l'appelant.
+    lecon: optional

@@ -1,0 +1,112 @@
+# Questions d'entretien — Aller plus loin en objet
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: java-poa-records-generes
+    niveau: junior
+    theme: Records
+    type: ouverte
+    question: "Qu'est-ce qu'un record et que génère-t-il automatiquement ?"
+    reponse: |
+      - Un `record` est un type de classe **immuable** dédié au transport de données, introduit en Java 16 (JEP 395).
+      - À partir des composants déclarés entre parenthèses, le compilateur génère automatiquement :
+        - le **constructeur canonique** (un paramètre par composant) ;
+        - un **accesseur** par composant, nommé comme le composant (`nom()`, pas `getNom()`) ;
+        - `equals()`, `hashCode()` et `toString()` basés sur tous les composants.
+      - Un record est implicitement `final` : il ne peut pas hériter d'une autre classe, mais peut implémenter des interfaces.
+    lecon: records
+
+  - id: java-poa-enums-ordinal
+    niveau: junior
+    theme: Énumérations
+    type: qcm
+    question: "Pourquoi éviter d'utiliser `ordinal()` pour stocker le statut d'une énumération en base de données ?"
+    code: |
+      public enum StatutCommande { EN_COURS, VALIDEE, ANNULEE }
+    choix:
+      - "`ordinal()` reflète uniquement la position de déclaration ; insérer une constante décale les valeurs suivantes et corrompt silencieusement les données déjà stockées"
+      - "`ordinal()` n'est pas une méthode publique sur les énumérations"
+      - "`ordinal()` change de valeur à chaque redémarrage de l'application"
+      - "Ce n'est pas un problème, `ordinal()` est parfaitement adapté à la persistance"
+    reponse: 0
+    explication: "Ajouter une constante au milieu de l'énumération décale les positions suivantes, sans qu'aucune erreur ne soit levée. Mieux vaut stocker `name()` ou une valeur métier explicite définie dans le constructeur de l'énumération."
+    lecon: enums
+
+  - id: java-poa-equals-hashcode
+    niveau: junior
+    theme: Égalité et comparaison
+    type: ouverte
+    question: "Quelle règle relie `equals()` et `hashCode()` ? Que se passe-t-il si elle n'est pas respectée ?"
+    reponse: |
+      - **Règle** : deux objets égaux selon `equals()` doivent obligatoirement avoir le **même** `hashCode()`. L'inverse n'est pas exigé (deux objets non égaux peuvent partager un hashCode, c'est une collision normale).
+      - **Si la règle est cassée** : dans une `HashMap` ou un `HashSet`, deux objets « égaux » peuvent atterrir dans des emplacements internes différents (basés sur le hashCode). Un objet pourtant `equals()` à une clé peut alors être introuvable (`map.get(...)` renvoie `null` à tort).
+      - **Réflexe** : toujours redéfinir les deux méthodes ensemble, généralement avec `Objects.hash(...)` pour `hashCode()`.
+    lecon: egalite-comparaison
+
+  # ---------- Confirmé ----------
+  - id: java-poa-records-constructeur-compact
+    niveau: confirme
+    theme: Records
+    type: qcm
+    question: "À quoi sert un constructeur compact dans un record, et comment se distingue-t-il du constructeur canonique classique ?"
+    code: |
+      public record Commande(String reference, int quantite) {
+          public Commande {
+              if (quantite <= 0) {
+                  throw new IllegalArgumentException("quantite invalide");
+              }
+          }
+      }
+    choix:
+      - "Il remplace totalement les accesseurs générés par le record"
+      - "Il permet de valider ou normaliser les paramètres avant l'affectation automatique aux champs, sans réécrire explicitement `this.champ = champ`"
+      - "Il empêche le record de générer `equals()` et `hashCode()`"
+      - "Il est obligatoire dans tout record, sinon la compilation échoue"
+    reponse: 1
+    explication: "Le constructeur compact (sans liste de paramètres explicite) sert à valider ou transformer les valeurs reçues avant qu'elles ne soient affectées aux champs — cette affectation finale est ajoutée automatiquement par le compilateur, il ne faut pas l'écrire soi-même. Il reste facultatif : sans lui, le constructeur canonique généré affecte directement les paramètres."
+    lecon: records
+
+  - id: java-poa-enums-corps-constante
+    niveau: confirme
+    theme: Énumérations
+    type: ouverte
+    question: "Comment donner un comportement différent à chaque constante d'une énumération ? Quel intérêt par rapport à un `switch` ?"
+    reponse: |
+      - Déclarer une méthode **abstraite** dans l'énumération, puis fournir un **corps de constante** (`CONSTANTE { ... }`) qui l'implémente pour chaque constante.
+      - Exemple : `Operation.ADDITION` et `Operation.MULTIPLICATION`, chacune avec sa propre implémentation d'`appliquer(int a, int b)`.
+      - Intérêt par rapport à un `switch` externe sur le type de constante : le comportement est directement attaché à la constante, et le compilateur impose une implémentation pour **chaque** constante — impossible d'oublier un cas silencieusement comme avec un `switch` classique sans `default`.
+    lecon: enums
+
+  - id: java-poa-classes-internes-fuite
+    niveau: confirme
+    theme: Classes internes
+    type: qcm
+    question: "Pourquoi préférer une classe interne statique à une classe interne d'instance quand elle n'a pas besoin d'accéder à l'état de la classe englobante ?"
+    code: |
+      public class Rapport {
+          private byte[] donnees = new byte[100_000_000];
+
+          public class Export { /* n'utilise pas donnees */ }
+      }
+    choix:
+      - "Une classe interne d'instance ne peut de toute façon pas être instanciée depuis l'extérieur"
+      - "Une classe interne d'instance porte une référence implicite vers l'objet englobant, qui reste donc accessible tant qu'une instance interne existe — risque de fuite mémoire si elle survit trop longtemps"
+      - "Une classe interne statique s'exécute plus vite grâce au JIT"
+      - "Il n'y a aucune différence pratique entre les deux formes"
+    reponse: 1
+    explication: "Chaque instance d'une classe interne non `static` garde une référence cachée vers l'instance englobante qui l'a créée. Si `Export` est stockée durablement (cache, écouteur enregistré) alors que `Rapport` ne l'est plus ailleurs, son tableau de 100 Mo reste malgré tout accessible via cette référence implicite, et n'est jamais libéré par le ramasse-miettes."
+    lecon: classes-internes
+
+  - id: java-poa-comparable-vs-comparator
+    niveau: confirme
+    theme: Égalité et comparaison
+    type: ouverte
+    question: "Quelle différence entre `Comparable` et `Comparator` ? Quel piège surveiller avec `TreeSet` ?"
+    reponse: |
+      - **`Comparable`** (`compareTo`) : implémenté par la classe elle-même, définit un **unique** ordre « naturel ». Utilisé automatiquement par `Collections.sort()` ou `TreeSet`/`TreeMap` sans argument.
+      - **`Comparator`** (`compare`) : externe à la classe comparée, permet de définir **autant d'ordres que nécessaire** (par prix, par nom…), sans la modifier.
+      - **Piège avec `TreeSet`/`TreeMap`** : ces collections utilisent exclusivement `compareTo` (ou le `Comparator` fourni) pour détecter les doublons, pas `equals()`. Si `compareTo` renvoie 0 pour deux objets qu'`equals()` distinguerait, un seul est conservé dans le `TreeSet` — un comportement incohérent et silencieux. `compareTo` doit rester cohérent avec `equals`.
+    lecon: egalite-comparaison

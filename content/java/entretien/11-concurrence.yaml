@@ -1,0 +1,124 @@
+questions:
+  - id: java-conc-race-condition
+    niveau: confirme
+    theme: Threads et modèle mémoire
+    type: ouverte
+    question: "Qu'est-ce qu'une condition de concurrence (race condition) ? Pourquoi compteur++ n'est-il pas thread-safe ?"
+    reponse: |
+      - Une condition de concurrence survient quand le résultat d'un programme dépend de l'ordre d'entrelacement, non déterministe, des instructions de plusieurs threads accédant à un même état partagé.
+      - `compteur++` se décompose en trois étapes séparées : lire la valeur, l'incrémenter, la réécrire. Si deux threads lisent la même valeur avant que l'un des deux n'ait réécrit, une incrémentation est perdue.
+      - Le bug est intermittent : le code peut sembler correct en test et échouer seulement sous charge, en production, selon l'entrelacement réel des threads.
+      - Se corrige avec `synchronized`, une classe atomique (`AtomicInteger`), ou en évitant le partage mutable.
+    explication: "Un bon candidat sait dérouler les trois étapes de l'opération, pas juste répéter que 'ce n'est pas atomique'. Vérifier aussi qu'il ne confond pas avec un simple problème de visibilité (que volatile suffirait à régler)."
+    lecon: threads-modele-memoire
+
+  - id: java-conc-interruption
+    niveau: confirme
+    theme: Threads et modèle mémoire
+    type: qcm
+    question: "Un thread capture une InterruptedException dans un catch vide, sans rien faire d'autre. Quel est le problème ?"
+    code: |
+      try {
+          Thread.sleep(1000);
+      } catch (InterruptedException e) {
+          // rien
+      }
+    choix:
+      - "Aucun problème : capturer l'exception suffit à gérer l'interruption"
+      - "Le statut d'interruption du thread est perdu (capturer InterruptedException l'efface) : aucun code appelant ne peut plus détecter que l'interruption a eu lieu, ce qui peut empêcher un arrêt propre plus haut dans la pile d'appels"
+      - "Le programme lève automatiquement une seconde exception pour compenser"
+      - "Thread.sleep() ne peut jamais être interrompu, cette exception ne se produit donc jamais en pratique"
+    reponse: 1
+    explication: "C'est un piège classique en entretien : capturer InterruptedException efface le statut d'interruption du thread. Un catch vide fait disparaître l'information sans laisser de trace. La bonne pratique est de propager l'exception ou de restaurer le statut avec Thread.currentThread().interrupt()."
+    lecon: threads-modele-memoire
+
+  - id: java-conc-synchronized-volatile
+    niveau: confirme
+    theme: Synchronisation
+    type: ouverte
+    question: "Quelle est la différence entre synchronized et volatile ? Peut-on remplacer l'un par l'autre ?"
+    reponse: |
+      - `synchronized` garantit l'exclusion mutuelle (un seul thread à la fois dans la section protégée) ET la visibilité des écritures faites dans cette section.
+      - `volatile` garantit uniquement la visibilité (et un ordre, via happens-before) d'un champ entre threads, sans exclusion mutuelle : deux threads peuvent toujours lire et écrire le même champ volatile en même temps.
+      - `volatile` ne rend jamais atomique une opération composée (`x++`, `x += y`) : pour un compteur partagé, il faut `synchronized` ou une classe atomique, pas seulement `volatile`.
+      - `volatile` convient bien à un drapeau à un seul écrivain, plusieurs lecteurs ; il ne remplace `synchronized` que dans ce cas précis.
+    explication: "Une confusion très fréquente est de croire que volatile est une version 'plus légère' de synchronized qui suffirait partout. Faire préciser dans quel cas précis volatile seul est suffisant (drapeau à un seul écrivain) distingue un candidat qui comprend vraiment le sujet."
+    lecon: synchronisation
+
+  - id: java-conc-deadlock
+    niveau: senior
+    theme: Synchronisation
+    type: qcm
+    question: "Quelle est la parade la plus fiable contre un interblocage (deadlock) provoqué par deux threads qui verrouillent les deux mêmes objets dans un ordre différent ?"
+    choix:
+      - "Augmenter la taille du pool de threads pour réduire la probabilité de collision"
+      - "Toujours acquérir les verrous dans un ordre global cohérent (par exemple, trier les objets par un identifiant unique avant de les verrouiller), ou utiliser tryLock() avec un délai pour se désister et réessayer plutôt que d'attendre indéfiniment"
+      - "Remplacer synchronized par volatile sur les objets concernés"
+      - "Ajouter un Thread.sleep() avant chaque acquisition de verrou pour désynchroniser les threads"
+    reponse: 1
+    explication: "Un interblocage naît d'une attente circulaire entre threads. Fixer un ordre global de verrouillage élimine structurellement le risque, quel que soit l'ordre des paramètres passés en entrée. tryLock() avec délai est une parade complémentaire quand un ordre global n'est pas réalisable. Un simple sleep() ne fait que réduire la probabilité d'observer le bug, sans le corriger."
+    lecon: synchronisation
+
+  - id: java-conc-pool-sizing
+    niveau: confirme
+    theme: Exécuteurs et résultats asynchrones
+    type: ouverte
+    question: "Comment dimensionner un pool de threads pour des tâches limitées par le processeur, et pour des tâches limitées par les entrées/sorties ?"
+    reponse: |
+      - Tâches limitées par le processeur (calcul pur) : une taille proche du nombre de cœurs disponibles (`Runtime.getRuntime().availableProcessors()`) maximise le débit ; plus de threads que de cœurs n'accélère rien et ajoute du changement de contexte.
+      - Tâches limitées par les entrées/sorties (réseau, disque, base de données) : les threads passent le plus clair de leur temps bloqués, pas à calculer ; un pool bien plus grand que le nombre de cœurs reste utile pour ne pas laisser le CPU inactif pendant les attentes.
+      - Les threads virtuels changent la donne pour le second cas : plutôt que de dimensionner un pool, on lance un thread virtuel par tâche bloquante, sans limite artificielle.
+    explication: "Un bon candidat distingue clairement les deux régimes et sait qu'ils appellent des dimensionnements opposés — une erreur fréquente est d'appliquer la règle 'nombre de cœurs' partout, y compris à des tâches d'E/S."
+    lecon: executors-futures
+
+  - id: java-conc-future-exception-avalee
+    niveau: senior
+    theme: Exécuteurs et résultats asynchrones
+    type: qcm
+    question: "Une tâche soumise via executor.submit(...) lève une exception, et le Future renvoyé n'est jamais consulté. Que se passe-t-il ?"
+    choix:
+      - "L'exception remonte immédiatement et interrompt le thread principal"
+      - "Elle est capturée silencieusement dans le Future : sans appel à get() (qui la relancerait dans une ExecutionException), elle n'apparaît jamais dans les journaux ni ailleurs"
+      - "L'ExecutorService se ferme automatiquement dès qu'une tâche échoue"
+      - "Une NullPointerException est levée au moment de la soumission"
+    reponse: 1
+    explication: "C'est un piège très fréquent en production : contrairement à execute(), submit() capture toute exception dans le Future plutôt que de la laisser atteindre un gestionnaire d'exceptions. Sans get() (ou handle/exceptionally avec CompletableFuture), l'erreur disparaît silencieusement — d'où l'importance de toujours consulter le résultat d'un Future, même pour une tâche dont on n'utilise pas la valeur de retour."
+    lecon: executors-futures
+
+  - id: java-conc-concurrenthashmap-vs-synchronized
+    niveau: confirme
+    theme: Collections concurrentes
+    type: ouverte
+    question: "Pourquoi préférer ConcurrentHashMap à Collections.synchronizedMap(new HashMap<>()) ?"
+    reponse: |
+      - ConcurrentHashMap verrouille finement (jamais la table entière) à l'écriture et permet des lectures sans verrou, alors que synchronizedMap synchronise chaque appel sur un unique verrou global, sérialisant tous les accès.
+      - ConcurrentHashMap offre des opérations atomiques composées (compute, merge, putIfAbsent) qui évitent une séquence lire-puis-écrire non protégée — même thread-safe individuellement, un get() suivi d'un put() séparé sur une map reste une condition de concurrence.
+      - L'itération de ConcurrentHashMap est faiblement cohérente et ne lève jamais ConcurrentModificationException, alors qu'itérer une synchronizedMap nécessite un bloc synchronized manuel autour de la boucle pour éviter cette exception.
+    explication: "Faire préciser la nuance sur compute/merge : beaucoup de candidats s'arrêtent à 'ConcurrentHashMap est plus rapide' sans expliquer que la vraie différence structurelle est la granularité du verrouillage et la disponibilité d'opérations atomiques composées."
+    lecon: collections-concurrentes
+
+  - id: java-conc-threads-virtuels-version
+    niveau: confirme
+    theme: Threads virtuels
+    type: qcm
+    question: "Quelle affirmation sur les threads virtuels est exacte ?"
+    choix:
+      - "Ils remplacent la nécessité de synchronized, volatile et des classes atomiques pour protéger un état partagé"
+      - "Ils ont été finalisés par le JEP 444 en Java 21, et un thread virtuel ne consomme un thread OS (carrier) que pendant qu'il exécute réellement du code"
+      - "Ils sont encore en aperçu en Java 27 et nécessitent --enable-preview"
+      - "Ils apportent un gain de performance systématique, y compris pour du calcul intensif limité par le processeur"
+    reponse: 1
+    explication: "Les threads virtuels sont finalisés depuis Java 21 (JEP 444) — à ne pas confondre avec la concurrence structurée, toujours en aperçu. Ils résolvent un problème de scalabilité pour les tâches bloquantes (E/S), pas de correction : les mécanismes de synchronisation classiques restent nécessaires face à un état partagé, et ils n'apportent rien pour du calcul pur sans blocage à masquer."
+    lecon: threads-virtuels
+
+  - id: java-conc-structured-concurrency-statut
+    niveau: senior
+    theme: Threads virtuels
+    type: ouverte
+    question: "Peut-on utiliser la concurrence structurée (structured concurrency) en production aujourd'hui ? Justifier."
+    reponse: |
+      - Non, pas sans réserve : au 16 septembre 2026, elle est toujours en aperçu (JEP 533, 7e aperçu, livré en Java 27) et nécessite le flag --enable-preview, y compris sur la version la plus récente du JDK.
+      - Une finalisation « sans changement » est proposée par le JEP 543, mais ce dernier n'a que le statut de candidat, visant Java 28 — non encore livré, donc à traiter comme non confirmé.
+      - Elle ne doit pas être confondue avec les threads virtuels (finalisés en Java 21) ni avec les valeurs de portée (finalisées en Java 25), les deux autres apports déjà finalisés du même projet Loom.
+    explication: "Cette question distingue nettement les candidats qui suivent l'actualité réelle du JDK de ceux qui répètent une information générique et datée. Une réponse qui affirme sans nuance 'oui, c'est stable depuis Java 21' doit être corrigée."
+    lecon: threads-virtuels

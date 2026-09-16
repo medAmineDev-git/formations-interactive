@@ -1,0 +1,72 @@
+questions:
+  - id: java-modules-encapsulation
+    niveau: confirme
+    theme: Le système de modules
+    type: ouverte
+    question: "Quels problèmes du classpath plat le système de modules (JPMS) est-il censé résoudre, et avec quelles déclarations dans module-info.java ?"
+    reponse: |
+      - Avant Java 9, tout vivait sur un classpath plat : aucune dépendance explicite entre composants, aucune détection de conflit (deux versions d'une même bibliothèque coexistent silencieusement), et une encapsulation limitée au paquet — tout type `public` est accessible de partout, y compris les classes internes du JDK.
+      - `module-info.java` déclare les dépendances explicites avec `requires` (et `requires transitive` pour les propager aux consommateurs), et ce qui est visible avec `exports` (packages utilisables en compilation) et `opens` (accès en plus par réflexion profonde).
+      - La résolution du graphe de modules échoue tôt (à la compilation ou au lancement) si une dépendance manque ou si deux modules portent le même nom, au lieu de laisser un classpath incomplet planter au runtime avec un symptôme peu clair.
+    explication: "Un bon candidat distingue les deux problèmes réglés (dépendances explicites, encapsulation forte) et sait que exports porte sur des packages, pas sur des classes individuelles."
+    lecon: jpms
+
+  - id: java-modules-inaccessible
+    niveau: senior
+    theme: Le système de modules
+    type: qcm
+    question: "Une bibliothèque de mapping objet-relationnel accède par réflexion aux champs privés d'un record applicatif et lève InaccessibleObjectException. Le module applicatif ne déclare que exports vers le package concerné. Quelle correction cible précisément le problème ?"
+    code: |
+      module com.boutique.app {
+          exports com.boutique.app.dto;
+      }
+    choix:
+      - "Remplacer exports par opens (ou ajouter les deux), ou lancer avec --add-opens comme contournement temporaire"
+      - "Ajouter requires vers le module de la bibliothèque de mapping"
+      - "Rendre tous les champs du record public"
+      - "Passer le record en classe interne du module de la bibliothèque de mapping"
+    reponse: 0
+    explication: "exports autorise l'usage normal en compilation, pas la réflexion profonde sur les membres non publics : il faut opens (déclaré dans module-info.java, ou imposé au lancement avec --add-opens module/package=cible comme échappatoire temporaire). C'est un piège classique en migration JPMS avec des frameworks basés sur la réflexion (mapping ORM, sérialisation, injection)."
+    lecon: jpms
+
+  - id: java-modules-jlink-interet
+    niveau: confirme
+    theme: Livrer une application
+    type: ouverte
+    question: "Quel est l'intérêt de jlink par rapport à la distribution classique d'un jar exécutable accompagné d'un JRE complet, et quelle contrainte impose-t-il sur les dépendances ?"
+    reponse: |
+      - jlink assemble uniquement les modules réellement utilisés (application + modules du JDK nécessaires) en une image d'exécution autonome, au lieu d'installer un JDK complet dont l'essentiel n'est jamais utilisé par l'application.
+      - jdeps --print-module-deps liste ces modules au format attendu par jlink --add-modules, sans avoir à les deviner manuellement.
+      - Contrainte : jlink exige un graphe de modules entièrement explicite — il refuse les modules automatiques (jars tiers sans module-info.java), il faut leur en générer un ou utiliser un outil dédié.
+    explication: "Faire préciser la contrainte sur les modules automatiques distingue un candidat qui a vraiment manipulé jlink de celui qui ne connaît que le principe général."
+    lecon: jlink-jpackage
+
+  - id: java-modules-sigterm-exec
+    niveau: senior
+    theme: La JVM en conteneur
+    type: qcm
+    question: "Un Dockerfile déclare `CMD java -jar app.jar` (forme shell). À la réception d'un SIGTERM par l'orchestrateur, quel est le comportement observé ?"
+    code: |
+      FROM eclipse-temurin:25-jre
+      COPY app.jar app.jar
+      CMD java -jar app.jar
+    choix:
+      - "Le processus java reçoit directement le signal et exécute normalement ses shutdown hooks"
+      - "Un shell devient PID 1, ne relaie pas automatiquement le signal au processus java lancé en enfant, qui n'est arrêté que par un SIGKILL forcé après le délai de grâce"
+      - "Docker traduit automatiquement CMD en forme exec au moment du build, ce piège n'existe donc plus"
+      - "Le conteneur refuse de démarrer avec cette syntaxe"
+    reponse: 1
+    explication: "La forme shell exécute la commande via /bin/sh -c, qui devient PID 1 et ne transmet pas le signal à ses processus enfants. Les shutdown hooks ne s'exécutent jamais, et l'arrêt final est un SIGKILL brutal après le délai de grâce, pas un arrêt propre. La forme exec (CMD en tableau) évite ce piège en faisant de java le PID 1 directement."
+    lecon: jvm-conteneur
+
+  - id: java-modules-oom-offheap
+    niveau: senior
+    theme: La JVM en conteneur
+    type: ouverte
+    question: "Un conteneur Java est tué (OOMKilled) par l'orchestrateur alors que le tas semble largement sous la limite fixée par -Xmx ou -XX:MaxRAMPercentage. Comment expliquer et diagnostiquer ce comportement ?"
+    reponse: |
+      - -Xmx et -XX:MaxRAMPercentage ne bornent que le tas ; la mémoire hors tas (metaspace, piles de threads, code compilé par le JIT, buffers directs, structures internes du ramasse-miettes) n'est pas comptée par ces options.
+      - Si la consommation totale du processus (tas + hors tas) dépasse la limite mémoire du conteneur, le noyau ou l'orchestrateur tue le conteneur — aucune OutOfMemoryError propre n'apparaît dans les journaux de l'application, ce qui rend le symptôme trompeur.
+      - Diagnostic : comparer la mémoire totale réellement consommée par le processus (pas seulement le tas rapporté par la JVM) à la limite du conteneur, et laisser une marge suffisante entre le pourcentage alloué au tas et 100 % de la limite.
+    explication: "Un bon candidat sait immédiatement dire que -Xmx ne couvre pas toute la mémoire du processus, et propose de regarder au-delà des métriques de tas pour diagnostiquer — un réflexe qui manque souvent en entretien."
+    lecon: jvm-conteneur

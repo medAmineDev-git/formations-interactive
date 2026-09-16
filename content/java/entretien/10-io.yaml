@@ -1,0 +1,118 @@
+# Questions d'entretien Java — chapitre Entrées/sorties et fichiers
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: java-io-path-vs-file
+    niveau: junior
+    theme: Path et Files
+    type: ouverte
+    question: "Pourquoi préfère-t-on aujourd'hui `java.nio.file.Path`/`Files` à l'ancienne API `java.io.File` ?"
+    reponse: |
+      - `File` signale la plupart des échecs par un simple booléen (`false`), sans indiquer la cause ; `Files` lève des exceptions typées (`NoSuchFileException`, `FileAlreadyExistsException`...) qui permettent de diagnostiquer le problème.
+      - `Files` gère correctement les liens symboliques, ce que `File` fait mal.
+      - `Files.list`/`Files.walk` permettent un parcours de répertoire paresseux (`Stream<Path>`), alors que `File.listFiles()` charge tout en mémoire d'un coup.
+      - `Path` sépare la représentation d'un chemin (qui ne touche pas le disque) des opérations réelles sur le système de fichiers (dans `Files`).
+    lecon: path-files
+
+  - id: java-io-resolve
+    niveau: junior
+    theme: Path et Files
+    type: qcm
+    question: "Que fait `base.resolve(autre)` si `autre` est un chemin absolu ?"
+    code: |
+      Path base = Path.of("/data/boutique");
+      Path autre = Path.of("/tmp/export.csv");
+      System.out.println(base.resolve(autre));
+    choix:
+      - "Il renvoie `autre` tel quel, en ignorant `base`"
+      - "Il lève une `IllegalArgumentException`"
+      - "Il combine les deux en `/data/boutique/tmp/export.csv`"
+      - "Il renvoie `base` seul, en ignorant `autre`"
+    reponse: 0
+    explication: "`resolve` ne combine les chemins que si l'argument est relatif. Si l'argument est déjà absolu, il est renvoyé tel quel — un piège fréquent quand le second chemin vient d'une configuration ou d'une entrée utilisateur non contrôlée."
+    lecon: path-files
+
+  - id: java-io-stream-fermeture
+    niveau: confirme
+    theme: Path et Files
+    type: ouverte
+    question: "`Files.walk` renvoie un `Stream<Path>`. Pourquoi faut-il absolument le fermer, contrairement à un flux obtenu par `liste.stream()` ?"
+    reponse: |
+      - `Files.walk` (comme `Files.list` et `Files.find`) garde un descripteur de répertoire ouvert côté système d'exploitation tant que le flux n'est pas consommé jusqu'au bout ou fermé explicitement.
+      - Un `Stream` sur une `Collection` en mémoire ne détient aucune ressource externe : rien à libérer.
+      - Sans try-with-resources, une opération terminale interrompue avant la fin (`findFirst`, exception levée pendant le traitement...) laisse le répertoire ouvert, et l'application finit par manquer de descripteurs si ce code s'exécute souvent.
+      - La bonne pratique est donc `try (Stream<Path> s = Files.walk(racine)) { ... }`.
+    explication: "Un bon signal en entretien : mentionner que ce n'est pas propre à `Files.walk` mais à toute méthode `Files` renvoyant un `Stream` sur une ressource système (`list`, `walk`, `find`, `newDirectoryStream`)."
+    lecon: path-files
+
+  - id: java-io-gros-fichier
+    niveau: confirme
+    theme: Lire et écrire des fichiers
+    type: qcm
+    question: "Un fichier CSV fait plusieurs gigaoctets. Quelle approche est appropriée pour le parcourir ?"
+    choix:
+      - "`Files.lines(chemin)` ou un `BufferedReader`, en traitant chaque ligne au fur et à mesure sans tout garder en mémoire"
+      - "`Files.readAllLines(chemin)` puis un `Stream` sur la `List` obtenue"
+      - "`Files.readString(chemin)` puis `String.split(\"\\n\")`"
+      - "Peu importe la méthode, la JVM gère automatiquement le chargement partiel"
+    reponse: 0
+    explication: "`readAllLines` et `readString` chargent tout le contenu en mémoire avant de rendre la main : sur un fichier de plusieurs gigaoctets, cela peut ralentir l'application ou lever une `OutOfMemoryError`. `Files.lines` et `BufferedReader.lines()` restent paresseux, ligne par ligne."
+    lecon: lecture-ecriture
+
+  - id: java-io-ecriture-atomique
+    niveau: confirme
+    theme: Lire et écrire des fichiers
+    type: ouverte
+    question: "Comment garantir qu'un fichier de configuration ne soit jamais lu à moitié écrit, même en cas d'arrêt brutal du processus pendant l'écriture ?"
+    reponse: |
+      - Ne jamais écrire directement dans le fichier final : un lecteur concurrent pourrait alors voir un contenu partiel.
+      - Écrire le nouveau contenu dans un fichier temporaire, créé dans le **même répertoire** (donc sur le même système de fichiers) que la destination.
+      - Déplacer ensuite ce fichier temporaire vers l'emplacement final avec `Files.move(temp, cible, StandardCopyOption.ATOMIC_MOVE)`.
+      - Le déplacement est une opération indivisible pour le système de fichiers : soit l'ancien fichier reste intact, soit le nouveau est entièrement en place — jamais un état intermédiaire visible.
+    explication: "Bien préciser « même répertoire/système de fichiers » : `ATOMIC_MOVE` ne peut garantir l'atomicité qu'à cette condition, un déplacement entre deux volumes différents nécessite une copie non atomique."
+    lecon: lecture-ecriture
+
+  - id: java-io-typereference
+    niveau: junior
+    theme: JSON et sérialisation
+    type: qcm
+    question: "Pourquoi `mapper.readValue(json, List.class)` ne suffit-il pas à obtenir une `List<Produit>` correctement typée ?"
+    code: |
+      List<Produit> produits = mapper.readValue(json, List.class); // ne donne pas ce qu'on attend
+    choix:
+      - "À cause de l'effacement de type : `List.class` ne porte aucune information sur le type des éléments à l'exécution, il faut passer par `TypeReference` pour l'indiquer"
+      - "Parce que `readValue` ne peut jamais renvoyer une `List`, seulement des tableaux"
+      - "Parce que `Produit` doit obligatoirement être un record pour être désérialisé"
+      - "Ce code fonctionne parfaitement, il n'y a pas de problème"
+    reponse: 0
+    explication: "`List.class` seul ne dit rien du type des éléments (effacement de type/type erasure) : Jackson produit alors une liste d'objets bruts (`LinkedHashMap`), pas des `Produit`. `new TypeReference<List<Produit>>() {}` conserve cette information générique et permet un mapping correct."
+    lecon: json-serialisation
+
+  - id: java-io-serialisation-risque
+    niveau: senior
+    theme: JSON et sérialisation
+    type: ouverte
+    question: "La sérialisation Java native (`Serializable`) a-t-elle été supprimée du JDK ? Quel est le risque à désérialiser des données non fiables, et comment s'en protéger ?"
+    reponse: |
+      - Non, elle n'a pas été supprimée : `Serializable`, `ObjectOutputStream`/`ObjectInputStream` restent pleinement utilisables aujourd'hui.
+      - Le risque : désérialiser un flux dont on ne contrôle pas l'origine peut forcer la JVM à instancier des classes arbitraires présentes sur le classpath, dans un ordre choisi par l'attaquant — potentiellement jusqu'à l'exécution de code non voulu.
+      - Protection native du JDK : `ObjectInputFilter` (introduit par le JEP 290), renforcé par des filtres propres à chaque flux (JEP 415) pour restreindre explicitement les classes qu'un `ObjectInputStream` accepte de reconstruire.
+      - En pratique, pour du nouveau code recevant des données d'une source externe, un format comme JSON évite structurellement ce risque : le parsing ne déclenche pas d'instanciation arbitraire de classes du classpath.
+    explication: "Sujet classique en entretien senior : bien distinguer « pas supprimée » de « déconseillée pour les données non fiables » — les deux sont vraies simultanément. Ce point est approfondi dans le chapitre Sécurité et robustesse."
+    lecon: json-serialisation
+
+  - id: java-io-charset-defaut
+    niveau: junior
+    theme: Lire et écrire des fichiers
+    type: qcm
+    question: "Depuis quelle version du JDK le charset par défaut de la plateforme est-il UTF-8 partout, indépendamment de l'OS ?"
+    choix:
+      - "Java 18"
+      - "Java 8"
+      - "Java 21"
+      - "Cela a toujours été le cas, quelle que soit la version"
+    reponse: 0
+    explication: "Avant Java 18, le charset par défaut dépendait de la configuration du système d'exploitation, source de bugs difficiles à reproduire d'une machine à l'autre. Depuis Java 18, il est fixé à UTF-8 sur toutes les plateformes. L'expliciter dans le code (`StandardCharsets.UTF_8`) reste malgré tout une bonne pratique de lisibilité et de portabilité vers du code plus ancien."
+    lecon: lecture-ecriture

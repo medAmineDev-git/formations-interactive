@@ -1,0 +1,100 @@
+questions:
+  - id: java-col-list-set-map
+    niveau: junior
+    theme: Le cadre des collections
+    type: ouverte
+    question: "Quelle est la différence entre List, Set et Map en Java ?"
+    reponse: |
+      - `List` : collection **ordonnée** (ordre d'insertion conservé), qui autorise les **doublons** et l'accès par index (`get(int)`). Implémentations courantes : `ArrayList`, `LinkedList`.
+      - `Set` : collection qui **n'autorise aucun doublon** — ajouter un élément déjà présent (au sens de `equals`) est ignoré, sans erreur.
+      - `Map` : structure **clé → valeur**, séparée de `Collection` (elle ne contient pas d'éléments isolés, mais des paires). Les clés sont uniques ; une nouvelle valeur pour une clé existante écrase l'ancienne.
+      - `Queue`/`Deque` complètent le tableau pour les files et les piles.
+    explication: "Insister sur le fait que Map n'étend pas Collection : c'est une distinction que beaucoup de candidats oublient. Mentionner aussi que l'ordre garanti dépend de l'implémentation choisie, pas seulement de l'interface."
+    lecon: list-set-map
+
+  - id: java-col-sequenced
+    niveau: confirme
+    theme: Le cadre des collections
+    type: qcm
+    question: "Quelle interface, introduite par un JEP finalisé sans cycle de preview, ajoute getFirst(), getLast() et reversed() aux collections qui ont un ordre de parcours bien défini ?"
+    choix:
+      - "SequencedCollection, JEP 431, finalisé en Java 21"
+      - "OrderedCollection, JEP 431, finalisé en Java 17"
+      - "SequencedCollection, JEP 431, encore en preview en Java 25"
+      - "Iterable, présente depuis Java 5"
+    reponse: 0
+    explication: "Le JEP 431 « Sequenced Collections » a été finalisé directement en Java 21, sans passer par un cycle de preview. List et Deque implémentent SequencedCollection ; LinkedHashSet/TreeSet et LinkedHashMap/TreeMap dérivent respectivement de SequencedSet et SequencedMap. HashSet et HashMap, sans ordre défini, n'en font pas partie."
+    lecon: list-set-map
+
+  - id: java-col-arraylist-linkedlist
+    niveau: confirme
+    theme: Choisir une implémentation
+    type: ouverte
+    question: "Quand choisir ArrayList plutôt que LinkedList, et inversement ?"
+    reponse: |
+      - `ArrayList` (tableau redimensionnable) : accès par index en O(1), ajout en fin en O(1) amorti. C'est le choix par défaut pour `List` : plus compact en mémoire et plus rapide en pratique grâce à la localité de cache.
+      - `LinkedList` (liste doublement chaînée) : accès par index en O(n), mais ajout/suppression en tête ou en queue en O(1). Son avantage ne joue que si l'on tient déjà le nœud (via un `ListIterator`) : `add(index, e)` doit d'abord parcourir la liste en O(n), comme `ArrayList`.
+      - En pratique, `LinkedList` est rarement le bon choix : pour une pile ou une file, `ArrayDeque` fait mieux.
+    explication: "Un bon candidat mentionne que le O(1) de LinkedList est conditionnel (il faut déjà tenir le nœud), pas un avantage automatique — c'est l'idée fausse la plus répandue sur cette question."
+    lecon: choisir-implementation
+
+  - id: java-col-hashmap-interne
+    niveau: confirme
+    theme: Choisir une implémentation
+    type: ouverte
+    question: "Comment un HashMap retrouve-t-il une valeur à partir d'une clé ? Que se passe-t-il en cas de collision ?"
+    reponse: |
+      - `put`/`get` calculent `hashCode()` de la clé, réduit à l'index d'une case (« bucket ») du tableau interne (capacité par défaut : 16).
+      - Si la case est vide, l'accès est direct : O(1).
+      - En cas de **collision** (deux clés dans la même case), elles coexistent sous forme de petite liste chaînée (transformée en arbre rouge-noir, O(log n), si la case accumule beaucoup d'entrées — détail d'implémentation depuis Java 8, pas une garantie contractuelle).
+      - Quand le nombre d'entrées dépasse capacité × facteur de charge (16 × 0.75 = 12 par défaut), la table double de taille et redistribue toutes les entrées.
+      - Ce mécanisme repose sur le contrat `equals()`/`hashCode()` : deux clés égales doivent avoir le même `hashCode()`, sinon elles ne sont jamais comparées entre elles.
+    explication: "Une bonne réponse cite le facteur de charge et le redimensionnement, pas seulement le hachage. Éviter d'affirmer un chiffre de performance non documenté au-delà de « en moyenne O(1) »."
+    lecon: choisir-implementation
+
+  - id: java-col-cme
+    niveau: junior
+    theme: Parcourir et trier
+    type: qcm
+    question: "Que se passe-t-il à l'exécution de ce code ?"
+    code: |
+      List<Integer> ids = new ArrayList<>(List.of(1, 2, 3, 4));
+      for (Integer id : ids) {
+          if (id % 2 == 0) {
+              ids.remove(id);
+          }
+      }
+    choix:
+      - "ConcurrentModificationException, car la liste est modifiée directement pendant le parcours par for-each"
+      - "La liste finale contient [1, 3]"
+      - "Une boucle infinie"
+      - "Rien, remove() dans un for-each est silencieusement ignoré"
+    reponse: 0
+    explication: "Le for-each s'appuie sur un Iterator ; modifier la liste par un appel direct (ids.remove(id)) plutôt que via l'itérateur casse le compteur de modifications interne, détecté au prochain next(). La suppression correcte pendant un parcours passe par Iterator.remove() ou removeIf()."
+    lecon: iteration-tri
+
+  - id: java-col-comparable-comparator
+    niveau: confirme
+    theme: Parcourir et trier
+    type: ouverte
+    question: "Quelle est la différence entre Comparable et Comparator ? Quand utiliser l'un plutôt que l'autre ?"
+    reponse: |
+      - `Comparable` : implémenté **par la classe elle-même**, via `compareTo(T autre)`. Définit un **unique** ordre naturel (`String`, les types enveloppes l'implémentent déjà).
+      - `Comparator` : ordre **externe** à la classe, via `compare(T a, T b)`. Permet de définir plusieurs ordres différents sans toucher à la classe, et se compose avec `comparing`, `thenComparing`, `reversed`, `nullsFirst`.
+      - Utiliser `Comparable` quand il existe un ordre naturel unique et évident pour la classe ; `Comparator` dès qu'il faut trier selon plusieurs critères, un critère variable à l'exécution, ou une classe qu'on ne contrôle pas.
+    explication: "Faire préciser que List.sort(null) utilise l'ordre naturel (Comparable), alors que List.sort(comparateur) utilise l'ordre fourni : un bon signal que le candidat comprend l'articulation entre les deux."
+    lecon: iteration-tri
+
+  - id: java-col-immutable-vue
+    niveau: junior
+    theme: Immuabilité
+    type: qcm
+    question: "Quelle différence entre Collections.unmodifiableList(liste) et List.copyOf(liste) ?"
+    choix:
+      - "unmodifiableList renvoie une vue adossée à la liste d'origine (ses changements s'y répercutent) ; copyOf renvoie une vraie copie indépendante"
+      - "Les deux renvoient une copie indépendante de la liste d'origine"
+      - "unmodifiableList accepte les null, copyOf ne les accepte jamais, mais les deux sont des copies"
+      - "Il n'y a aucune différence, ce sont deux noms pour la même opération"
+    reponse: 0
+    explication: "Collections.unmodifiableList ne copie rien : c'est une vue en lecture seule sur la liste source, qui reflète toute modification faite directement sur celle-ci. List.copyOf (Java 10+) fige réellement le contenu au moment de l'appel, indépendamment de la source ensuite modifiée."
+    lecon: immuabilite

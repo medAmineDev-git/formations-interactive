@@ -1,0 +1,140 @@
+# Questions d'entretien Java — Chapitre : Programmation orientée objet (poo)
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: java-poo-constructeurs
+    niveau: junior
+    theme: Classes et objets
+    type: ouverte
+    question: "À quoi sert un constructeur ? Que se passe-t-il si on n'en écrit aucun ?"
+    reponse: |
+      - Un constructeur initialise l'état d'un objet au moment de sa création avec `new`. Il porte le nom de la classe et n'a pas de type de retour.
+      - Si aucun constructeur n'est écrit, le compilateur en génère un sans paramètre (le constructeur par défaut).
+      - Dès qu'on écrit un constructeur, même avec paramètres, ce constructeur par défaut disparaît : `new MaClasse()` sans argument ne compile plus, sauf à écrire soi-même un constructeur sans paramètre.
+      - `this(...)`, en première instruction d'un constructeur, permet d'appeler un autre constructeur de la même classe pour factoriser l'initialisation.
+    lecon: classes-objets
+
+  - id: java-poo-static
+    niveau: junior
+    theme: Classes et objets
+    type: qcm
+    question: "Que peut faire une méthode static ?"
+    code: |
+      public class Commande {
+          private String reference;
+          private static int compteur = 0;
+
+          public static int getCompteur() {
+              return compteur; // OK
+              // return reference; // ne compile pas
+          }
+      }
+    choix:
+      - "Accéder aux champs static et aux champs d'instance de la classe"
+      - "Accéder uniquement aux membres static de la classe, car elle n'a pas de this"
+      - "Accéder aux champs d'instance uniquement si la classe a un seul objet créé"
+      - "Rien : une méthode static ne peut manipuler aucun champ"
+    reponse: 1
+    explication: "Une méthode static n'est rattachée à aucun objet précis, elle n'a donc pas de this : elle ne peut accéder qu'aux membres static de la classe. Accéder à reference (un champ d'instance) depuis getCompteur() ne compile pas."
+    lecon: classes-objets
+
+  - id: java-poo-encapsulation-pourquoi
+    niveau: junior
+    theme: Encapsulation
+    type: ouverte
+    question: "Pourquoi déclare-t-on généralement les attributs d'une classe private plutôt que public ?"
+    reponse: |
+      - Pour garder le contrôle sur l'accès à l'état de l'objet : un accesseur/mutateur peut valider, transformer ou journaliser un changement, un champ public non.
+      - Pour pouvoir faire évoluer la représentation interne (par exemple changer le type d'un champ) sans casser le code qui utilise la classe, tant que la signature publique ne change pas.
+      - Pour maintenir des invariants (ex. « le prix n'est jamais négatif ») : impossible à garantir si n'importe qui peut écrire directement dans le champ.
+      - Cela n'empêche pas d'écrire un setter : la question est de savoir si la modification a du sens depuis l'extérieur, pas seulement de cacher le champ.
+    lecon: encapsulation
+
+  - id: java-poo-heritage-super
+    niveau: junior
+    theme: Héritage
+    type: ouverte
+    question: "Que fait super() dans un constructeur ? Que se passe-t-il si on ne l'appelle pas explicitement ?"
+    reponse: |
+      - `super(...)` appelle un constructeur de la classe mère ; il doit être la toute première instruction du constructeur qui l'utilise.
+      - Si ni `super(...)` ni `this(...)` n'est écrit, Java insère automatiquement un appel implicite à `super()` sans argument.
+      - Si la classe mère n'a pas de constructeur sans argument, cet appel implicite échoue à la compilation : il faut alors écrire `super(...)` explicitement avec les bons arguments.
+      - `super.methode()` (hors constructeur) appelle la version de la méthode définie dans la classe mère, même si la sous-classe l'a redéfinie.
+    lecon: heritage
+
+  # ---------- Confirmé ----------
+  - id: java-poo-copie-defensive
+    niveau: confirme
+    theme: Encapsulation
+    type: qcm
+    question: "Cette classe se veut immuable. Est-ce réellement le cas ?"
+    code: |
+      public final class Commande {
+          private final List<String> lignes;
+
+          public Commande(List<String> lignes) {
+              this.lignes = lignes;
+          }
+
+          public List<String> getLignes() {
+              return lignes;
+          }
+      }
+    choix:
+      - "Oui, le champ lignes étant final, l'objet est immuable"
+      - "Non : sans copie défensive, la liste peut être modifiée depuis l'extérieur via le constructeur ou via getLignes()"
+      - "Non, car la classe devrait être abstract pour être immuable"
+      - "Oui, tant que la classe reste final"
+    reponse: 1
+    explication: "final sur le champ empêche seulement de réaffecter la référence lignes, pas de modifier la liste pointée. Sans copie défensive à l'entrée du constructeur et à la sortie de getLignes(), l'appelant peut ajouter ou retirer des éléments de la liste interne."
+    lecon: encapsulation
+
+  - id: java-poo-composition
+    niveau: confirme
+    theme: Héritage
+    type: ouverte
+    question: "Quand préférer la composition à l'héritage ? Donnez un exemple concret."
+    reponse: |
+      - L'héritage crée un couplage fort : la sous-classe hérite de **toute** l'API de la classe mère, même ce qui n'a pas de sens dans son contexte métier.
+      - Exemple classique : faire hériter une classe Pile (structure LIFO) d'ArrayList expose aussi add(index, ...) ou remove(index), qui cassent la discipline « pile ». C'est d'ailleurs l'erreur de conception de java.util.Stack, qui hérite de Vector.
+      - La composition (une ArrayList interne, privée, avec seulement empiler()/depiler() exposées) protège l'invariant et n'expose qu'une API volontairement restreinte.
+      - Règle pratique : hériter seulement quand la relation « est un » est sincère et stable ; sinon composer avec une référence vers l'objet.
+    lecon: heritage
+
+  - id: java-poo-overload-vs-override
+    niveau: confirme
+    theme: Polymorphisme
+    type: qcm
+    question: "Que se passe-t-il à l'exécution ?"
+    code: |
+      class Traiteur {
+          String traiter(Produit p) { return "générique"; }
+          String traiter(Livre l) { return "livre"; }
+      }
+
+      Produit p = new Livre();
+      System.out.println(new Traiteur().traiter(p));
+    choix:
+      - "livre, car l'objet réel désigné par p est un Livre"
+      - "générique, car la surcharge est résolue à la compilation d'après le type déclaré de p, Produit"
+      - "Erreur de compilation : appel ambigu entre les deux méthodes traiter"
+      - "ClassCastException à l'exécution"
+    reponse: 1
+    explication: "traiter(...) est surchargée, pas redéfinie. La méthode appelée est choisie à la compilation d'après le type déclaré de l'argument (Produit), pas d'après le type réel de l'objet. C'est l'inverse de la redéfinition, qui elle est résolue à l'exécution : confusion fréquente en entretien."
+    lecon: polymorphisme
+
+  - id: java-poo-interface-abstraite-choix
+    niveau: confirme
+    theme: Interfaces et classes abstraites
+    type: ouverte
+    question: "Comment choisir entre une interface et une classe abstraite pour partager du comportement entre plusieurs classes ?"
+    reponse: |
+      - Une classe ne peut hériter que d'une seule classe (abstraite ou non), mais peut implémenter plusieurs interfaces : l'interface est plus flexible si le comportement doit être combiné avec d'autres.
+      - Une classe abstraite peut porter un véritable état (champs d'instance) et un constructeur ; une interface ne porte que des constantes (implicitement public static final).
+      - Une interface (avec des méthodes default depuis Java 8, private depuis Java 9) définit surtout un **contrat** transversal, potentiellement partagé par des classes sans rapport entre elles (ex. Comparable).
+      - Une classe abstraite convient mieux pour un socle commun à une famille de classes proches, avec de l'état et du comportement réellement partagés, pas seulement un contrat.
+    explication: "Bonus en entretien : mentionner le conflit entre deux méthodes default de même signature (obligation de redéfinir dans la classe qui implémente les deux interfaces), signe d'une bonne compréhension des limites des interfaces."
+    lecon: interfaces-abstraites
