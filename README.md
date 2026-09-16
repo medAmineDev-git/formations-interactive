@@ -2,6 +2,9 @@
 
 Parcours d'apprentissage + préparation aux entretiens, par technologie.
 
+**En ligne :** https://medaminedev-git.github.io/formations-interactive/ — publié automatiquement
+par GitHub Actions à chaque push sur `main` (`.github/workflows/deploy.yml`).
+
 ```bash
 npm install
 npm run dev       # http://localhost:5173
