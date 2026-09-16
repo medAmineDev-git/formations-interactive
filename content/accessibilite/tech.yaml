@@ -1,0 +1,44 @@
+nom: Accessibilité web
+icone: ♿
+couleur: "#1d4ed8"
+description: Rendre un site utilisable par tous — les bases techniques, le RGAA, et la mise en pratique dans Angular.
+
+# Format court volontairement : 22 leçons, dont un chapitre dédié à Angular.
+chapitres:
+  # ---------- Débutant ----------
+  - id: fondamentaux
+    niveau: debutant
+    titre: Comprendre l'accessibilité
+    description: Les situations de handicap, les technologies d'assistance, le cadre légal et les normes.
+
+  - id: html-semantique
+    niveau: debutant
+    titre: Les bases techniques
+    description: Structure sémantique, images et alternatives, liens et boutons.
+
+  - id: interaction
+    niveau: debutant
+    titre: Navigation et interaction
+    description: Clavier et focus, formulaires, couleurs et contrastes.
+
+  # ---------- Intermédiaire ----------
+  - id: aria
+    niveau: intermediaire
+    titre: ARIA
+    description: Quand l'utiliser, rôles et états, composants riches et régions dynamiques.
+
+  - id: rgaa-methode
+    niveau: intermediaire
+    titre: Appliquer le RGAA
+    description: Structure du référentiel, méthode d'audit, taux de conformité et obligations déclaratives.
+
+  - id: tests-outils
+    niveau: intermediaire
+    titre: Tester l'accessibilité
+    description: Outils automatiques, tests manuels et lecteurs d'écran.
+
+  # ---------- Avancé ----------
+  - id: angular-a11y
+    niveau: avance
+    titre: L'accessibilité dans une application Angular
+    description: Sémantique dans les templates, focus et routage, composants accessibles, tests automatisés.

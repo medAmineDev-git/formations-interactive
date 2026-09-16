@@ -1,0 +1,87 @@
+questions:
+  - id: a11y-aria-pas-aria-vaut-mieux
+    niveau: confirme
+    theme: Principes ARIA
+    type: ouverte
+    question: "Que signifie l'adage « pas d'ARIA vaut mieux qu'un mauvais ARIA », et pourquoi est-il particulièrement vrai pour ARIA plus que pour d'autres erreurs de code front ?"
+    reponse: |
+      - ARIA ne modifie que l'arbre d'accessibilité, jamais l'apparence : un attribut ARIA mal posé ne casse rien visuellement, donc personne ne le détecte en testant à la souris.
+      - Un rôle ou un état incorrect envoie une fausse information aux technologies d'assistance : un bouton annoncé "pressé" qui ne l'est pas, un rôle "tab" sur un élément qui ne réagit à aucune touche, etc. — c'est pire que l'absence totale d'ARIA, qui laisse au moins la sémantique HTML native, souvent correcte par défaut.
+      - Conséquence pratique : privilégier un élément HTML natif (bouton, lien, champ de formulaire) chaque fois que c'est possible, et ne poser de l'ARIA explicite que quand rien de natif ne couvre le besoin.
+    explication: "Vérifie que le candidat comprend qu'ARIA agit uniquement sur l'arbre d'accessibilité et sait relier l'adage à la première règle d'usage d'ARIA (préférer le HTML natif), pas seulement le réciter."
+    lecon: aria-principes
+
+  - id: a11y-aria-hidden-focalisable
+    niveau: senior
+    theme: Principes ARIA
+    type: qcm
+    question: "Pourquoi la quatrième règle d'usage d'ARIA interdit-elle de poser aria-hidden=\"true\" sur un élément focalisable, ou sur un ancêtre qui en contient un ?"
+    choix:
+      - "Parce que cela provoque une erreur JavaScript au chargement de la page"
+      - "Parce qu'un utilisateur au clavier ou au lecteur d'écran peut alors faire le focus sur un élément retiré de l'arbre d'accessibilité — il « atterrit sur rien », sans annonce ni contexte"
+      - "Parce que le navigateur retire alors l'élément du DOM, ce qui casse les gestionnaires d'événements"
+      - "Parce que aria-hidden n'est valide que sur des éléments non interactifs, et son usage sur un élément focalisable est rejeté par le HTML"
+    reponse: 1
+    explication: "aria-hidden n'empêche ni le focus clavier natif ni le clic : l'élément reste parfaitement utilisable visuellement et à la souris, mais un lecteur d'écran n'a plus rien à annoncer quand le focus s'y pose, ce qui désoriente l'utilisateur. C'est une incohérence entre ce qui est interactif et ce qui est exposé à l'arbre d'accessibilité, pas une erreur technique ou une règle de validation HTML."
+    lecon: aria-principes
+
+  - id: a11y-aria-modale-focus
+    niveau: confirme
+    theme: Composants riches (APG)
+    type: ouverte
+    question: "Un testeur au clavier ouvre une boîte de dialogue modale et signale que le focus reste sur le bouton qui l'a déclenchée, en arrière-plan. Quelles corrections apporter pour suivre le motif Dialog (Modal) de l'APG ?"
+    reponse: |
+      - Déplacer explicitement le focus à l'intérieur du dialogue dès son ouverture, généralement sur le premier élément focalisable (ou sur un élément statique en tête de contenu si celui-ci est long).
+      - Piéger la tabulation à l'intérieur du dialogue : Tab depuis le dernier élément focalisable revient au premier, Shift+Tab depuis le premier revient au dernier — rien ne doit s'échapper vers la page en arrière-plan.
+      - Fermer le dialogue avec la touche Échap.
+      - À la fermeture, restituer le focus à l'élément qui avait ouvert le dialogue.
+      - Rien de tout cela n'est automatique avec role="dialog" seul : c'est du JavaScript à écrire explicitement.
+    explication: "Vérifie que le candidat connaît les quatre exigences du motif dans le bon ordre logique (focus initial, piège, Échap, retour), pas seulement l'une d'entre elles isolément."
+    lecon: composants-riches
+
+  - id: a11y-aria-tabs-tab-vs-fleches
+    niveau: senior
+    theme: Composants riches (APG)
+    type: qcm
+    question: "Dans un composant Tabs conforme au motif APG, un seul onglet a tabindex=\"0\" à un instant donné, les autres ayant tabindex=\"-1\". Quel est l'intérêt de ce mécanisme, appelé roving tabindex ?"
+    choix:
+      - "Il améliore les performances de rendu du navigateur en réduisant le nombre d'éléments focalisables"
+      - "Il fait en sorte qu'une seule pression sur Tab suffise pour entrer dans la liste d'onglets et une seule pour en sortir, la navigation entre onglets se faisant ensuite aux flèches, pas en répétant Tab"
+      - "Il est requis par le HTML pour que aria-selected fonctionne"
+      - "Il empêche les lecteurs d'écran d'annoncer les onglets inactifs"
+    reponse: 1
+    explication: "Sans roving tabindex, chaque onglet serait un arrêt Tab séparé et il faudrait presser Tab autant de fois que d'onglets pour atteindre le contenu suivant de la page. Avec un seul onglet actif dans l'ordre de tabulation, Tab entre et sort du groupe en une étape ; à l'intérieur du groupe, ce sont les flèches qui déplacent le focus. C'est le même mécanisme que dans les motifs menu et grille."
+    lecon: composants-riches
+
+  - id: a11y-aria-live-polite-assertive
+    niveau: confirme
+    theme: Régions live
+    type: ouverte
+    question: "Comment choisir entre aria-live=\"polite\" (ou role=\"status\") et aria-live=\"assertive\" (ou role=\"alert\") pour une mise à jour dynamique donnée ? Donnez un exemple boutique pour chaque cas."
+    reponse: |
+      - polite (status) attend une pause dans ce que le lecteur d'écran est déjà en train d'annoncer avant de lire la mise à jour : à réserver aux informations non urgentes, qui peuvent attendre quelques secondes sans nuire à l'utilisateur. Exemple : "3 produits trouvés" après un filtre, ou "Produit ajouté au panier".
+      - assertive (alert) interrompt immédiatement l'annonce en cours : à réserver à ce qui bloque réellement l'utilisateur ou exige une action immédiate. Exemple : "Le paiement a échoué, vérifiez votre carte."
+      - La règle générale : assertive doit rester rare. Une région assertive déclenchée trop souvent (à chaque frappe, à chaque défilement) devient vite désagréable et pousse certains utilisateurs à couper le lecteur d'écran sur la page.
+    explication: "Cherche à vérifier que le candidat sait justifier le choix par l'urgence réelle de l'information, pas seulement réciter la définition des deux valeurs."
+    lecon: live-regions
+
+  - id: a11y-aria-live-region-preexistante
+    niveau: senior
+    theme: Régions live
+    type: qcm
+    question: "Un développeur crée un `<div>` avec aria-live=\"polite\" et y insère immédiatement un texte de confirmation, le tout au même moment, dans le même appel JavaScript, puis l'ajoute au DOM. L'annonce ne se produit pas de façon fiable pour tous les utilisateurs. Pourquoi ?"
+    code: |
+      function confirmer(texte) {
+        const div = document.createElement('div');
+        div.setAttribute('aria-live', 'polite');
+        div.textContent = texte;
+        document.body.appendChild(div);
+      }
+    choix:
+      - "aria-live doit être posé après l'insertion dans le DOM, jamais avant"
+      - "La région live n'était pas déjà présente dans le DOM avant que son contenu soit défini : la technologie d'assistance n'a pas eu l'occasion de la repérer comme région surveillée avant le changement"
+      - "textContent ne déclenche jamais d'événement DOM, contrairement à innerText"
+      - "Il manque obligatoirement aria-atomic=\"true\" pour que l'annonce se déclenche"
+    reponse: 1
+    explication: "Le piège classique des régions live : elles doivent exister, vides, dans le DOM avant la mise à jour de leur contenu. Ici, la région et son texte apparaissent d'un seul coup, sans laisser le temps à la technologie d'assistance de l'enregistrer comme surveillée. La correction consiste à créer la région live vide au chargement de la page et à ne modifier que son textContent ensuite."
+    lecon: live-regions

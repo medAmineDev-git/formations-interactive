@@ -1,0 +1,81 @@
+questions:
+  - id: a11y-html-titres-navigation
+    niveau: junior
+    theme: Structure sémantique
+    type: ouverte
+    question: "Pourquoi la hiérarchie des titres (`<h1>` à `<h6>`) est-elle considérée comme un outil de navigation, et pas seulement un choix de mise en forme ?"
+    reponse: |
+      - Beaucoup de lecteurs d'écran proposent une fonction qui liste tous les titres d'une page et permet de sauter directement à l'un d'eux, sans tout écouter dans l'ordre.
+      - Un seul `<h1>` par page (le sujet principal), et aucun niveau sauté en descendant (h2 puis h3, jamais h2 puis h4 directement) : la hiérarchie doit refléter le plan logique du contenu.
+      - La taille visuelle d'un titre se règle en CSS, indépendamment de son niveau HTML : choisir un niveau pour son rendu plutôt que pour sa place dans le plan casse cet outil de navigation.
+    explication: "Vérifie que le candidat ne réduit pas les titres à une question de style, et connaît l'usage réel qu'en font les lecteurs d'écran."
+    lecon: structure-semantique
+
+  - id: a11y-html-header-footer-role
+    niveau: confirme
+    theme: Structure sémantique
+    type: qcm
+    question: "Un `<footer>` imbriqué à l'intérieur d'un `<article>` obtient-il le rôle implicite *contentinfo* ?"
+    choix:
+      - "Oui, systématiquement : c'est le rôle implicite de tout `<footer>`, quelle que soit sa position"
+      - "Non : *contentinfo* n'est obtenu que par un `<footer>` de premier niveau, non imbriqué dans `<article>`, `<aside>`, `<main>`, `<nav>` ou `<section>` ; imbriqué, c'est un simple pied de section"
+      - "Non, car `<footer>` n'a jamais de rôle implicite, avec ou sans imbrication"
+      - "Cela dépend uniquement de la présence d'un attribut `role` explicite"
+    reponse: 1
+    explication: "Piège classique : le rôle implicite dépend de la position dans le document, pas seulement du nom de la balise. Même règle pour `<header>`/*banner*."
+    lecon: structure-semantique
+
+  - id: a11y-html-alt-vide-vs-absent
+    niveau: junior
+    theme: Images et alternatives
+    type: qcm
+    question: "Quelle est la différence entre `alt=\"\"` et l'absence totale de l'attribut `alt` sur une `<img>` ?"
+    choix:
+      - "Aucune différence : les deux sont ignorés de la même façon par tous les lecteurs d'écran"
+      - "`alt=\"\"` est un choix explicite qui dit à une technologie d'assistance d'ignorer une image décorative ; l'attribut absent laisse un comportement incertain, certains lecteurs d'écran annoncent alors le nom de fichier ou l'URL de l'image"
+      - "`alt=\"\"` provoque une erreur de validation HTML, contrairement à l'absence de l'attribut"
+      - "L'absence d'attribut `alt` est recommandée pour les images décoratives, `alt=\"\"` uniquement pour les images informatives"
+    reponse: 1
+    explication: "Distinction fréquemment testée en entretien : `alt=\"\"` volontaire pour une image décorative n'est jamais équivalent à un oubli d'attribut."
+    lecon: images-alternatives
+
+  - id: a11y-html-image-complexe
+    niveau: confirme
+    theme: Images et alternatives
+    type: ouverte
+    question: "Comment rendre accessible un graphique de répartition des ventes par catégorie, sachant qu'un `alt` court ne peut pas transmettre le détail des données ?"
+    reponse: |
+      - Un `alt` bref sur l'image, qui indique sa nature et renvoie vers une alternative détaillée affichée à proximité (« Répartition des ventes par catégorie : voir le tableau ci-dessous »).
+      - Cette alternative détaillée peut être un tableau de données équivalent (avec `<caption>` et `<th scope>`) ou un paragraphe descriptif reprenant les valeurs.
+      - L'important est que l'information portée visuellement par le graphique existe intégralement ailleurs, en texte structuré, pas seulement résumée dans l'attribut `alt`.
+    explication: "Teste la compréhension que l'`alt` seul n'est pas toujours suffisant pour une image porteuse d'une information riche, et la connaissance d'une solution concrète (description longue)."
+    lecon: images-alternatives
+
+  - id: a11y-html-div-onclick
+    niveau: junior
+    theme: Liens et boutons
+    type: qcm
+    question: "Une `<div>` avec un attribut `onclick` fonctionne visuellement comme un bouton. Quel est le problème pour un utilisateur clavier ?"
+    code: |
+      <div class="btn-supprimer" onclick="supprimerArticle(42)">Supprimer</div>
+    choix:
+      - "Aucun problème : `onclick` fonctionne identiquement à la souris et au clavier"
+      - "La `<div>` n'est ni focusable au Tab, ni activable avec Entrée par défaut, et son rôle n'est annoncé comme aucun élément interactif par un lecteur d'écran"
+      - "Le problème vient uniquement de l'absence d'un attribut `alt` sur la `<div>`"
+      - "Une `<div>` ne peut techniquement pas recevoir d'attribut `onclick`"
+    reponse: 1
+    explication: "Erreur très répandue en pratique. La correction attendue est `<button type=\"button\">`, qui obtient nativement focus, rôle et activation clavier (Entrée et Espace) sans code supplémentaire."
+    lecon: liens-boutons
+
+  - id: a11y-html-lien-bouton-distinction
+    niveau: junior
+    theme: Liens et boutons
+    type: ouverte
+    question: "Quelle est la différence entre un lien et un bouton, et pourquoi cette distinction compte-t-elle au-delà de l'apparence visuelle ?"
+    reponse: |
+      - Un lien (`<a href>`) navigue : il mène vers une autre page, une ancre, ou déclenche un téléchargement.
+      - Un bouton (`<button>`) agit sur la page actuelle : ouvrir une modale, soumettre un formulaire, ajouter au panier.
+      - Le comportement natif diffère : un lien s'active avec Entrée, un bouton avec Entrée et Espace ; un lecteur d'écran annonce le rôle *link* ou *button* différemment, ce qui aide l'utilisateur à anticiper ce qui va se passer avant d'activer l'élément.
+      - Utiliser le mauvais élément (ex. un `<a href="#">` pour une action) casse ces attentes, même si le rendu visuel est identique.
+    explication: "Question d'ouverture très fréquente en entretien junior : vérifie que le candidat justifie le choix par le comportement, pas seulement par le style."
+    lecon: liens-boutons

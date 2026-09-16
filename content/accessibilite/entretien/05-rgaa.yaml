@@ -1,0 +1,107 @@
+questions:
+  - id: a11y-rgaa-critere-vs-test
+    niveau: confirme
+    theme: Structure du RGAA
+    type: ouverte
+    question: "Quelle est la différence entre un critère et un test dans le RGAA, et pourquoi cette distinction existe-t-elle ?"
+    reponse: |
+      - Un critère est l'exigence de contrôle elle-même, le point de conformité à vérifier. Le RGAA en compte 106.
+      - Un test est la procédure de vérification opérationnelle, propre à une technologie (HTML, CSS, JavaScript…), associée à un critère. Un critère comporte en moyenne 2,5 tests.
+      - Cette distinction existe pour réduire la marge d'interprétation : un critère énonce une exigence générale, le ou les tests disent comment la vérifier concrètement sur du code réel, quelle que soit la technologie utilisée.
+    explication: "Question de base sur la structure du référentiel : elle vérifie que le candidat ne confond pas les deux niveaux, une confusion fréquente en début d'apprentissage du RGAA."
+    lecon: rgaa-structure
+
+  - id: a11y-rgaa-thematiques-navigation
+    niveau: confirme
+    theme: Structure du RGAA
+    type: qcm
+    question: "Un développeur découvre qu'un tableau de données n'a pas d'en-têtes associés à ses cellules. Comment retrouver rapidement le ou les critères concernés dans le RGAA ?"
+    choix:
+      - "En parcourant les 106 critères un par un dans l'ordre du référentiel"
+      - "En partant de la thématique concernée par le problème observé — ici Tableaux — pour descendre vers le ou les critères précis"
+      - "En cherchant directement dans WCAG 2.1, le RGAA ne traitant pas les tableaux de données"
+      - "En attendant le prochain audit complet, aucune recherche ciblée n'étant possible entre deux audits"
+    reponse: 1
+    explication: "Les 13 thématiques du RGAA (dont Tableaux) sont le point d'entrée le plus rapide face à un problème observé : elles permettent d'identifier la famille de critères concernée avant de descendre vers le critère précis et sa fiche complète (test, méthode, cas particuliers)."
+    lecon: rgaa-structure
+
+  - id: a11y-rgaa-calcul-taux
+    niveau: confirme
+    theme: Audit et taux de conformité
+    type: qcm
+    question: "Sur une page, 50 critères RGAA sont applicables, dont 45 validés. Quel est le taux de conformité de cette page, et que faut-il pour que le site entier soit « totalement conforme » ?"
+    code: |
+      Page auditée : 45 critères validés / 50 critères applicables
+    choix:
+      - "90 % sur cette page ; il faudrait que 100 % des critères applicables soient validés sur toutes les pages de l'échantillon pour une conformité totale du site"
+      - "90 % sur cette page ; un taux moyen de 95 % sur l'échantillon suffirait pour une conformité totale"
+      - "45 % sur cette page, calculé sur les 106 critères du référentiel complet"
+      - "Impossible à déterminer sans connaître le nombre de critères non applicables"
+    reponse: 0
+    explication: "45 ÷ 50 = 90 % pour cette page. La conformité totale du site exige que 100 % des critères de contrôle applicables soient respectés, sans palier de tolérance à 95 % : un point souvent mal connu, y compris de profils expérimentés."
+    lecon: audit-conformite
+
+  - id: a11y-rgaa-echantillon-composition
+    niveau: confirme
+    theme: Audit et taux de conformité
+    type: ouverte
+    question: "Comment constitue-t-on l'échantillon de pages d'un audit RGAA ? Le référentiel impose-t-il un nombre de pages précis ?"
+    reponse: |
+      - Le RGAA ne fixe pas de nombre de pages imposé : la règle officielle est que la sélection et le nombre de pages doivent être représentatifs du service audité.
+      - Doivent y figurer, quand elles existent : la page d'accueil, une page de contact, les mentions légales, la page « accessibilité », le plan du site, une page d'aide, une page d'authentification.
+      - S'y ajoutent : au moins une page représentative par type de service, des documents téléchargeables représentatifs, l'intégralité des pages d'un même processus (un tunnel de formulaire), des pages représentant des types de contenus distincts, et un tirage aléatoire d'au moins 10 % des pages déjà sélectionnées.
+    explication: "Vérifie que le candidat ne cite pas de chiffre précis non officiel (comme « 25 pages », parfois entendu dans des guides tiers) et connaît les critères qualitatifs réels de composition de l'échantillon."
+    lecon: audit-conformite
+
+  - id: a11y-rgaa-priorisation-impact
+    niveau: senior
+    theme: Audit et taux de conformité
+    type: ouverte
+    question: "Un rapport d'audit liste 40 critères non validés, classés par numéro croissant. L'équipe de développement ne sait pas par où commencer. Comment restituer et prioriser ces résultats plus efficacement ?"
+    reponse: |
+      - Reformuler chaque non-conformité en impact utilisateur réel plutôt qu'en numéro de critère : « un utilisateur de lecteur d'écran ne peut pas soumettre ce formulaire » plutôt que « critère non validé ».
+      - Prioriser les critères qui échouent sur un composant réutilisé sur tout le site (menu de navigation, pied de page, composant de design system) : leur correction a un effet de levier bien supérieur à un critère isolé sur une seule page secondaire.
+      - Ne pas attendre la fin du projet pour auditer : vérifier des critères dès les maquettes et au fil du développement permet de corriger un problème pendant qu'il est encore isolé à un composant, avant qu'il ne se propage à toutes les pages qui le réutilisent.
+    explication: "Question senior sur la restitution d'un audit : elle distingue un candidat qui sait auditer techniquement d'un candidat qui sait aussi rendre les résultats exploitables par une équipe produit."
+    lecon: audit-conformite
+
+  - id: a11y-rgaa-declaration-contenu
+    niveau: confirme
+    theme: Déclaration et obligations
+    type: qcm
+    question: "Que doit obligatoirement contenir une déclaration d'accessibilité, en plus du statut de conformité ?"
+    choix:
+      - "La liste des contenus non accessibles avec leurs motifs et alternatives, les modalités de signalement pour les usagers, et les voies de recours"
+      - "Uniquement le nom du prestataire ayant réalisé l'audit"
+      - "Le détail individuel des 106 critères RGAA, validé ou non, page par page"
+      - "Rien d'autre : le statut de conformité seul suffit légalement"
+    reponse: 0
+    explication: "La déclaration doit indiquer le statut de conformité, la liste des contenus non accessibles avec leurs motifs (non-conformité, charge disproportionnée, ou hors champ) et les alternatives proposées, les modalités de signalement de difficultés pour les usagers, ainsi que les voies de recours (dont le Défenseur des droits). Le détail critère par critère n'est pas une mention obligatoire de la déclaration elle-même."
+    lecon: declaration-obligations
+
+  - id: a11y-rgaa-sanctions-arcom
+    niveau: senior
+    theme: Déclaration et obligations
+    type: ouverte
+    question: "Quelle autorité peut sanctionner un défaut d'accessibilité en France aujourd'hui, et pour quels montants ? Pourquoi faut-il se méfier des montants de 2 000 € et 20 000 € parfois encore cités ?"
+    reponse: |
+      - L'ARCOM (Autorité de régulation de la communication audiovisuelle et numérique) est l'autorité compétente : elle peut mettre en demeure, puis prononcer une sanction pécuniaire en l'absence de mise en conformité.
+      - Montant maximal de 50 000 € pour non-respect de l'obligation d'accessibilité elle-même ; 25 000 € pour non-respect des obligations déclaratives (déclaration, schéma pluriannuel/plan d'action, mention en page d'accueil).
+      - Une nouvelle sanction peut être prononcée si le manquement persiste plus de 6 mois après une première sanction.
+      - Les montants de 2 000 € / 20 000 € appartenaient à un régime antérieur, abrogé par le décret n° 2026-816 du 24 août 2026 (en vigueur depuis le 27 août 2026) : toute source qui les cite encore décrit une réglementation obsolète.
+    explication: "Question senior sur un point réglementaire qui a changé très récemment (2026) : elle distingue les candidats qui suivent une veille active de ceux qui répètent une information désormais dépassée."
+    lecon: declaration-obligations
+
+  - id: a11y-rgaa-eaa-vs-article47
+    niveau: senior
+    theme: Déclaration et obligations
+    type: qcm
+    question: "Une entreprise de transport de voyageurs réalise 20 millions d'euros de chiffre d'affaires annuel en France, bien en dessous du seuil de 250 millions d'euros du régime de l'article 47. Est-elle pour autant certainement hors de toute obligation d'accessibilité ?"
+    choix:
+      - "Non : le transport de voyageurs fait partie des secteurs couverts par l'European Accessibility Act indépendamment de la taille de l'entreprise, sous réserve de l'exemption micro-entreprise"
+      - "Oui, car en dessous de 250 M€ de chiffre d'affaires aucune obligation d'accessibilité ne s'applique jamais"
+      - "Non, mais uniquement si elle dépasse 10 millions d'euros de chiffre d'affaires, seuil intermédiaire prévu par l'EAA"
+      - "Oui, l'EAA ne s'appliquant qu'aux entreprises du secteur public"
+    reponse: 0
+    explication: "Le seuil de 250 M€ ne concerne que le régime de l'article 47. L'European Accessibility Act couvre des secteurs B2C précis — dont le transport de voyageurs — quelle que soit la taille de l'entreprise, sauf exemption micro-entreprise (moins de 10 salariés et chiffre d'affaires ou bilan ≤ 2 M€). Les deux régimes sont distincts et non exclusifs l'un de l'autre."
+    lecon: declaration-obligations

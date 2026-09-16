@@ -1,0 +1,83 @@
+questions:
+  - id: a11y-fond-familles-handicap
+    niveau: junior
+    theme: Comprendre le handicap
+    type: ouverte
+    question: "Quelles grandes familles de situations de handicap faut-il avoir en tête pour concevoir une interface accessible ?"
+    reponse: |
+      - Visuelle : cécité, malvoyance, daltonisme (confusion de couleurs, pas absence de vision).
+      - Auditive : surdité, malentendance.
+      - Motrice : mobilité réduite, tremblements, absence de membre, fatigue.
+      - Cognitive : troubles de l'apprentissage, de l'attention, du spectre autistique, de la mémoire.
+      - Chaque famille peut être permanente, temporaire (une fracture) ou situationnelle (une seule main occupée, un environnement bruyant, un écran au soleil).
+    explication: "Question d'ouverture : elle vérifie que le candidat ne réduit pas l'accessibilité au seul handicap visuel, et qu'il connaît la distinction permanent / temporaire / situationnel."
+    lecon: comprendre-handicap
+
+  - id: a11y-fond-nom-accessible
+    niveau: junior
+    theme: Comprendre le handicap
+    type: qcm
+    question: "Ce bouton icône n'a ni texte visible ni `aria-label`. Que va réellement annoncer un lecteur d'écran ?"
+    code: |
+      <button>
+        <img src="corbeille.svg" alt="">
+      </button>
+    choix:
+      - "« Bouton », sans aucun libellé : `alt=\"\"` vide l'image de tout texte, et rien d'autre ne fournit de nom accessible"
+      - "« Corbeille, bouton », car le lecteur d'écran interprète le nom du fichier SVG"
+      - "Rien du tout : le bouton devient invisible pour le lecteur d'écran"
+      - "« Image, bouton », car le lecteur d'écran signale la présence d'une image non décrite"
+    reponse: 0
+    explication: "Le lecteur d'écran s'appuie sur l'arbre d'accessibilité, pas sur le rendu visuel ni le nom de fichier. `alt=\"\"` marque explicitement l'image comme décorative : elle n'apporte donc pas de texte, et le bouton reste sans nom accessible — annoncé seulement par son rôle."
+    lecon: comprendre-handicap
+
+  - id: a11y-fond-handicap-situationnel
+    niveau: confirme
+    theme: Comprendre le handicap
+    type: ouverte
+    question: "Un chef de produit pense que l'accessibilité ne concerne « qu'une petite minorité d'utilisateurs ». Comment lui répondre en vous appuyant sur la notion de handicap situationnel ?"
+    reponse: |
+      - Une situation de handicap n'est pas toujours permanente : un bras immobilisé après une fracture, un environnement trop bruyant pour entendre une vidéo, un écran illisible en plein soleil sont des situations temporaires ou situationnelles qui touchent potentiellement tous les utilisateurs.
+      - Les exigences d'accessibilité (navigation clavier complète, contraste suffisant, sous-titres) répondent donc à un public bien plus large que les seuls utilisateurs identifiés comme handicapés dans les tests.
+      - S'ajoutent des bénéfices collatéraux concrets : meilleure utilisabilité mobile, meilleur référencement, interfaces plus claires pour tout le monde — des arguments produit au-delà de la seule obligation légale.
+    explication: "Teste la capacité à argumenter en entretien au-delà de la définition, avec des exemples concrets plutôt qu'une réponse uniquement théorique ou moralisatrice."
+    lecon: comprendre-handicap
+
+  - id: a11y-fond-seuil-250m
+    niveau: junior
+    theme: Le cadre légal
+    type: qcm
+    question: "Une entreprise privée du secteur de la logistique réalise en moyenne 300 M€ de chiffre d'affaires en France sur ses trois derniers exercices. Est-elle soumise à une obligation d'accessibilité numérique ?"
+    choix:
+      - "Oui, en vertu de l'article 47 de la loi de 2005 : elle dépasse le seuil de 250 M€ fixé par le décret n° 2019-768, quel que soit son secteur d'activité"
+      - "Non, car seul le secteur public est concerné par l'article 47"
+      - "Non, car l'European Accessibility Act ne couvre pas le secteur de la logistique, et c'est le seul texte applicable au privé"
+      - "Oui, mais uniquement si elle compte plus de 250 salariés"
+    reponse: 0
+    explication: "Le seuil de l'article 47 (décret n° 2019-768, art. 2) est un chiffre d'affaires moyen de 250 M€ sur trois exercices, appliqué à toute entreprise privée quel que soit son secteur — distinct du régime EAA qui vise des secteurs B2C précis indépendamment de la taille."
+    lecon: cadre-legal
+
+  - id: a11y-fond-sanctions-arcom
+    niveau: confirme
+    theme: Le cadre légal
+    type: ouverte
+    question: "Quel est le régime de sanctions actuellement en vigueur pour non-respect de l'obligation d'accessibilité de l'article 47, et pourquoi faut-il se méfier des montants qu'on trouve encore dans certains articles en ligne ?"
+    reponse: |
+      - Depuis l'ordonnance n° 2023-859 (art. 47-1 de la loi 2005-102), c'est l'ARCOM qui contrôle : elle peut mettre en demeure une entité, puis prononcer une sanction pécuniaire à défaut de mise en conformité.
+      - Plafonds actuels : 50 000 € pour non-respect de l'obligation d'accessibilité elle-même, 25 000 € pour les obligations déclaratives (déclaration d'accessibilité, schéma pluriannuel, mention en page d'accueil) ; sanction renouvelable si le manquement persiste plus de 6 mois.
+      - L'ancien régime (amendes de 2 000 € et 20 000 € prononcées par le ministre chargé des personnes handicapées) a été abrogé par le décret n° 2026-816 du 24 août 2026 : tout contenu qui cite encore ces montants décrit une réglementation obsolète depuis le 27 août 2026.
+    explication: "Sujet à portée légale et récemment modifié : le candidat doit connaître le régime actuel ET savoir qu'une grande partie du contenu disponible en ligne cite encore l'ancien barème."
+    lecon: cadre-legal
+
+  - id: a11y-fond-wcag-en301549-rgaa
+    niveau: confirme
+    theme: Normes et référentiels
+    type: ouverte
+    question: "Comment expliqueriez-vous la différence entre les WCAG, la norme EN 301 549 et le RGAA à quelqu'un qui les confond ?"
+    reponse: |
+      - Les WCAG (W3C) sont des recommandations internationales organisées en 4 principes (Perceptible, Utilisable, Compréhensible, Robuste) et 3 niveaux (A, AA, AAA). Version en vigueur : WCAG 2.2.
+      - EN 301 549 est la norme européenne d'accessibilité des TIC qui constitue la référence légale : elle incorpore par référence des critères de succès WCAG — c'est elle qu'une réglementation cite, pas directement les WCAG.
+      - Le RGAA est la méthode française qui opérationnalise ce que vise EN 301 549 pour le web, en critères de contrôle et procédures de test vérifiables.
+      - Point de vigilance : le RGAA 4.1.2 actuel teste les 50 critères de succès des niveaux A et AA de WCAG **2.1**, pas WCAG 2.2 — un futur RGAA 5, en cours de rédaction, devrait s'en rapprocher, mais n'est pas encore publié.
+    explication: "Question très fréquente en entretien confirmé/senior sur ce sujet : elle distingue les candidats qui connaissent l'articulation réelle des textes de ceux qui utilisent « WCAG », « RGAA » et « accessibilité légale » comme synonymes interchangeables."
+    lecon: principes-wcag

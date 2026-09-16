@@ -1,0 +1,113 @@
+questions:
+  - id: a11y-ng-spa-silencieuse
+    niveau: confirme
+    theme: Angular et accessibilité
+    type: ouverte
+    question: "Pourquoi dit-on qu'une application monopage (SPA) « part avec un handicap » du point de vue de l'accessibilité, comparée à un site multi-pages classique ?"
+    reponse: |
+      - Un site multi-pages recharge le document à chaque navigation : le lecteur d'écran repart du haut de la page et annonce automatiquement le nouveau titre.
+      - Une SPA Angular ne recharge jamais le document : le routeur remplace un fragment de DOM, mais aucun événement natif ne prévient une technologie d'assistance qu'un changement a eu lieu.
+      - Il en va de même pour un `@if`/`@for` qui fait apparaître ou disparaître du contenu : silencieux par défaut.
+      - Conséquence pratique : mettre à jour le titre de la page et déplacer le focus après chaque navigation, annoncer explicitement les changements de contenu importants (`LiveAnnouncer`) — rien de tout cela n'est automatique.
+    explication: "Question d'ouverture de chapitre : elle vérifie que le candidat comprend le problème de fond avant les solutions techniques (focus, LiveAnnouncer, titre de route)."
+    lecon: angular-bases
+
+  - id: a11y-ng-div-click
+    niveau: junior
+    theme: Angular et accessibilité
+    type: qcm
+    question: "Quel est le problème d'accessibilité de ce composant Angular, indépendamment de tout style CSS ?"
+    code: |
+      @Component({
+        selector: 'app-vignette',
+        template: `<div class="vignette" (click)="ouvrir()">{{ titre() }}</div>`,
+      })
+      export class Vignette {
+        titre = input.required<string>();
+      }
+    choix:
+      - "Aucun : `(click)` fonctionne identiquement à la souris et au clavier dans Angular"
+      - "Le `<div>` n'est pas focusable et n'a pas de rôle interactif : impossible de l'atteindre au Tab ni de l'activer avec Entrée ou Espace"
+      - "Angular interdit `(click)` sur un `<div>` : ce code ne compile pas"
+      - "Le problème disparaît dès qu'on ajoute `cursor: pointer` en CSS"
+    reponse: 1
+    explication: "Un `<div>` reste neutre pour le clavier et les technologies d'assistance quel que soit son style visuel. La correction passe par un élément interactif natif (`<button>`), pas par du CSS."
+    lecon: angular-bases
+
+  - id: a11y-ng-focus-navigation
+    niveau: confirme
+    theme: Angular et accessibilité
+    type: ouverte
+    question: "Un site utilise `title` sur chaque route pour que le routeur Angular mette à jour `<title>` automatiquement. Un testeur au clavier signale que rien ne l'informe d'un changement de page. Que manque-t-il ?"
+    reponse: |
+      - `title` sur la route met bien à jour `<title>`, mais dans une SPA sans rechargement de document, ça ne déclenche pas d'annonce vocale immédiate à soi seul.
+      - Il faut en complément déplacer explicitement le focus clavier vers le contenu de la nouvelle vue à chaque navigation (ex. le `<h1>` de la page, rendu focusable avec `tabindex="-1"` si besoin), typiquement depuis un service qui écoute les événements du routeur.
+      - Un lien d'évitement (« Aller au contenu »), posé une seule fois dans le composant racine, complète ce dispositif en permettant de sauter la navigation répétée.
+    explication: "Vérifie que le candidat ne s'arrête pas à « mettre à jour le titre » et connaît la nécessité de gérer le focus séparément — le piège le plus fréquent sur ce sujet."
+    lecon: focus-routage
+
+  - id: a11y-ng-focustrap-vs-factory
+    niveau: senior
+    theme: Angular et accessibilité
+    type: qcm
+    question: "Dans quel cas choisir `FocusTrapFactory` plutôt que la directive `cdkTrapFocus` pour confiner le focus d'une modale ?"
+    choix:
+      - "Jamais : `FocusTrapFactory` est dépréciée au profit de `cdkTrapFocus`"
+      - "Quand le conteneur à piéger est créé dynamiquement par du code (ex. via l'overlay CDK) et n'existe pas comme élément fixe dans un template sur lequel poser une directive"
+      - "Uniquement en mode zoneless, où les directives de template ne fonctionnent plus"
+      - "Quand la modale doit rester ouverte après un rechargement complet de la page"
+    reponse: 1
+    explication: "Les deux API reposent sur le même mécanisme. `cdkTrapFocus` convient au cas courant, une modale déclarée dans un template avec `@if`. `FocusTrapFactory` (méthode `create()`/`destroy()`) s'utilise quand le conteneur est produit dynamiquement, sans template statique où poser la directive."
+    lecon: focus-routage
+
+  - id: a11y-ng-cdk-dialog
+    niveau: confirme
+    theme: Angular et accessibilité
+    type: ouverte
+    question: "Pourquoi recommande-t-on `@angular/cdk/dialog` plutôt qu'une modale construite à la main avec `@if` et une `<div>` en superposition ?"
+    reponse: |
+      - Une modale accessible doit gérer plusieurs comportements simultanément : rôle `dialog`/`alertdialog`, confinement du Tab à l'intérieur, focus initial cohérent, restitution du focus vers l'élément déclencheur à la fermeture.
+      - `Dialog` (`@angular/cdk/dialog`) fournit ces comportements par défaut et testés (via `ariaLabel`, `autoFocus`, `restoreFocus` dans la configuration) : le développeur fournit le contenu et la logique métier, pas la mécanique d'accessibilité.
+      - Une implémentation maison doit recréer chacun de ces points et en oublie facilement un — le plus souvent la restitution du focus à la fermeture.
+    explication: "Question fréquente en entretien senior/confirmé : elle teste la connaissance du CDK autant que la compréhension de ce qu'implique réellement une modale accessible."
+    lecon: composants-accessibles
+
+  - id: a11y-ng-aria-describedby-erreur
+    niveau: junior
+    theme: Angular et accessibilité
+    type: qcm
+    question: "Un champ de formulaire affiche un message d'erreur juste en dessous, visible à l'écran, mais sans `aria-describedby` ni `aria-invalid`. Quel est le problème pour un utilisateur de lecteur d'écran ?"
+    choix:
+      - "Aucun : la proximité visuelle entre le champ et le message suffit à les relier pour toute technologie d'assistance"
+      - "En se plaçant sur le champ, un lecteur d'écran n'annonce que son libellé, sans jamais mentionner l'erreur ni sa description, même si le message est visible juste en dessous"
+      - "Le problème vient uniquement du `<label for>`, qui devrait être supprimé"
+      - "Le formulaire ne peut simplement pas être soumis sans ces deux attributs"
+    reponse: 1
+    explication: "La proximité visuelle ne crée aucune relation pour une technologie d'assistance. `aria-describedby` doit pointer explicitement vers l'identifiant du message d'erreur, et `aria-invalid=\"true\"` signaler l'état invalide."
+    lecon: composants-accessibles
+
+  - id: a11y-ng-limites-axe
+    niveau: senior
+    theme: Angular et accessibilité
+    type: ouverte
+    question: "Une équipe a intégré `axe-core` (test de composants Vitest et tests Playwright) et bloque le build sur toute violation. Le tunnel de commande reste pourtant difficilement utilisable au clavier. Comment expliquer ce décalage, et que faudrait-il ajouter ?"
+    reponse: |
+      - `axe-core` détecte des violations vérifiables mécaniquement sur un DOM rendu : attribut manquant, contraste insuffisant, rôle ARIA mal utilisé.
+      - Il ne peut pas juger un comportement fonctionnel dans le temps : un ordre de tabulation incohérent, un focus qui ne se restitue pas après la fermeture d'une modale, ou une action clavier qui ne déclenche pas ce qu'elle devrait — rien de tout ça n'est visible sur un instantané du DOM.
+      - Le remède n'est pas un autre outil automatique, mais un test manuel régulier du parcours complet au clavier, en plus de l'intégration continue existante — et l'inclure dans la définition de terminé de chaque fonctionnalité du tunnel.
+    explication: "Question senior classique sur les limites de l'automatisation : elle distingue les candidats qui savent seulement « brancher axe-core » de ceux qui comprennent ce que l'outil couvre réellement."
+    lecon: tests-a11y-angular
+
+  - id: a11y-ng-vitest-vs-playwright-axe
+    niveau: confirme
+    theme: Angular et accessibilité
+    type: qcm
+    question: "Quelle est la principale différence entre lancer `axe-core` dans un test de composant Vitest et le lancer via `AxeBuilder` dans un test Playwright ?"
+    choix:
+      - "Le test de composant analyse un fragment de DOM isolé (rapide, ciblé) ; le test Playwright analyse une page réellement chargée dans un navigateur (routeur, styles, focus en contexte), ce qui permet de détecter des problèmes qui n'existent qu'à l'échelle de l'application entière"
+      - "Les deux vérifient rigoureusement les mêmes règles avec la même portée, seul le langage de test change"
+      - "`AxeBuilder` ne peut analyser que des pages statiques sans JavaScript"
+      - "Le test de composant Vitest ne peut pas détecter de problème de contraste"
+    reponse: 0
+    explication: "Un test de composant isole volontairement un fragment d'interface, rapide mais aveugle au contexte global. Un test Playwright avec `AxeBuilder` s'exécute sur une page réellement rendue, ce qui couvre des scénarios (focus après navigation, superposition d'éléments) invisibles à l'échelle d'un seul composant. Les deux sont complémentaires."
+    lecon: tests-a11y-angular

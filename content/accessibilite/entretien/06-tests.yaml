@@ -1,0 +1,92 @@
+questions:
+  - id: a11y-test-couverture-automatique
+    niveau: confirme
+    theme: Tester l'accessibilité
+    type: ouverte
+    question: "Un chef de projet affirme que le site est accessible parce que l'audit axe DevTools ne remonte plus aucune erreur. Que lui répondez-vous ?"
+    reponse: |
+      - Un outil automatique ne vérifie que des règles mécaniques : présence d'attributs, contrastes, validité ARIA, structure des titres.
+      - Il ne peut jamais juger la pertinence d'un texte alternatif, la cohérence d'un ordre de tabulation, ou le sens réel d'un contenu.
+      - Le seul chiffre précis et sourcé sur la couverture réelle vient d'une étude Deque de mars 2021 : environ 57,38 % du volume de problèmes réels détectés sur plus de 2 000 audits — même ce chiffre confirme qu'une part importante des problèmes échappe à l'automatisation.
+      - « Zéro erreur automatique » est un signal pour passer aux tests manuels, pas une preuve de conformité.
+    explication: "Question classique en entretien confirmé : elle distingue les candidats qui savent brancher un outil de ceux qui comprennent ses limites réelles, avec un chiffre exact plutôt qu'une estimation vague."
+    lecon: outils-automatiques
+
+  - id: a11y-test-lighthouse-vs-axe
+    niveau: confirme
+    theme: Tester l'accessibilité
+    type: qcm
+    question: "Un score Lighthouse de 100 en accessibilité est-il équivalent à un audit axe DevTools complet sans violation ?"
+    choix:
+      - "Oui, les deux outils utilisent exactement le même jeu de règles"
+      - "Non : Lighthouse s'appuie sur un sous-ensemble des règles axe-core, plus restreint que l'ensemble complet vérifié par axe DevTools"
+      - "Non, car Lighthouse ne teste jamais l'accessibilité, seulement la performance"
+      - "Oui, à condition d'exécuter Lighthouse en ligne de commande plutôt que dans Chrome DevTools"
+    reponse: 1
+    explication: "Lighthouse intègre axe-core mais n'exécute qu'une partie de ses règles (une cinquantaine d'audits contre près d'une centaine dans axe DevTools complet). Un score de 100 signale l'absence de violation sur ce sous-ensemble, pas une couverture complète."
+    lecon: outils-automatiques
+
+  - id: a11y-test-routine-manuelle
+    niveau: junior
+    theme: Tester l'accessibilité
+    type: ouverte
+    question: "Quelles vérifications manuelles rapides feriez-vous sur une nouvelle page avant de la considérer terminée, sans lancer d'audit complet ?"
+    reponse: |
+      - Parcourir toute la page au clavier (Tab/Shift+Tab, Entrée, Espace) en vérifiant que le focus reste visible à chaque étape.
+      - Zoomer à 200 % pour vérifier qu'aucun contenu n'est tronqué ni superposé.
+      - Vérifier la hiérarchie des titres (un h1, pas de saut de niveau).
+      - Soumettre un formulaire avec des données invalides et vérifier que chaque erreur est annoncée et reliée au bon champ.
+    explication: "Question d'entrée de chapitre : elle vérifie que le candidat connaît une routine concrète et rapide, pas seulement des principes théoriques."
+    lecon: tests-manuels
+
+  - id: a11y-test-outline-none
+    niveau: junior
+    theme: Tester l'accessibilité
+    type: qcm
+    question: "Un bouton est stylé avec `outline: none` sans remplacement visuel. Quel type de test révèle ce problème ?"
+    choix:
+      - "Un audit automatique comme axe DevTools, qui signale toujours cette règle CSS comme une erreur"
+      - "Un test manuel au clavier : le bouton reste techniquement focusable, mais rien ne montre à l'écran où se trouve le focus pendant la navigation"
+      - "Un validateur HTML, car `outline: none` est une propriété CSS invalide"
+      - "Aucun test ne peut détecter ce problème avant la mise en production"
+    reponse: 1
+    explication: "Le focus existe toujours dans le DOM : un outil automatique ne voit rien d'anormal. Seul un test manuel, en regardant l'écran pendant une navigation au clavier, révèle que personne ne peut suivre où se trouve le focus."
+    lecon: tests-manuels
+
+  - id: a11y-test-quand-audit-externe
+    niveau: senior
+    theme: Tester l'accessibilité
+    type: ouverte
+    question: "Une équipe applique une grille de test maison à chaque livraison depuis un an. Dans quels cas recommandez-vous malgré tout un audit externe ou des tests avec des utilisateurs en situation de handicap ?"
+    reponse: |
+      - Avant une déclaration de conformité RGAA : la démarche elle-même suppose une évaluation indépendante et méthodique.
+      - Avant un jalon majeur (refonte, nouveau parcours critique) : un regard extérieur repère des angles morts qu'une équipe habituée à son propre produit ne voit plus.
+      - Sur un parcours métier critique (paiement, authentification) : l'expérience réelle d'un utilisateur expert d'une technologie d'assistance révèle des difficultés d'usage qu'une routine interne, même rigoureuse, ne reproduit pas fidèlement.
+    explication: "Question senior : elle vérifie que le candidat sait qu'une routine interne, même sérieuse, a des limites structurelles — pas seulement un manque de rigueur ponctuel."
+    lecon: tests-manuels
+
+  - id: a11y-test-jaws-vs-nvda
+    niveau: confirme
+    theme: Tester l'accessibilité
+    type: qcm
+    question: "D'après la WebAIM Screen Reader User Survey (édition n° 10, 2024), quelle affirmation est correcte sur JAWS et NVDA ?"
+    choix:
+      - "NVDA est toujours en tête, quelle que soit la mesure utilisée"
+      - "JAWS arrive en tête comme lecteur d'écran principal (40,5 % contre 37,7 %), mais NVDA repasse devant en usage au sens large, toutes fréquences confondues (environ 65,6 % contre 60,5 %)"
+      - "JAWS et NVDA ont exactement la même part d'usage sur toutes les mesures"
+      - "Cette enquête ne couvre pas NVDA, seulement les lecteurs commerciaux"
+    reponse: 1
+    explication: "Le classement dépend de la mesure : « lecteur principal » place JAWS en tête, « usage au sens large » place NVDA devant. Confondre les deux mesures est une erreur fréquente en entretien comme en documentation technique."
+    lecon: lecteurs-ecran
+
+  - id: a11y-test-limite-dev-voyant
+    niveau: senior
+    theme: Tester l'accessibilité
+    type: ouverte
+    question: "Un développeur voyant teste sa fonctionnalité avec NVDA et ne relève aucun problème. Peut-on en conclure que la fonctionnalité est accessible ? Pourquoi tester quand même soi-même un lecteur d'écran ?"
+    reponse: |
+      - Non : un développeur voyant reste un non-expert, plus lent et moins fluide dans les raccourcis qu'un utilisateur au quotidien, et il bénéficie d'un contexte visuel qu'un utilisateur aveugle n'a pas.
+      - Un même code peut aussi se comporter différemment d'un lecteur d'écran à l'autre (NVDA, JAWS, VoiceOver) : un test concluant sur un seul couple lecteur/navigateur ne se généralise pas automatiquement.
+      - Essayer quand même un lecteur d'écran reste utile : ça change durablement la façon d'écrire du HTML et attrape les problèmes les plus grossiers (bouton sans nom, champ sans étiquette) avant même un test manuel ou un audit externe.
+    explication: "Question senior classique : elle teste la capacité à nuancer — reconnaître la valeur du test personnel sans en surestimer la portée, et connaître le rôle des combinaisons officielles de test."
+    lecon: lecteurs-ecran

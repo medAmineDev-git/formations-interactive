@@ -1,0 +1,90 @@
+questions:
+  - id: a11y-int-pourquoi-clavier
+    niveau: junior
+    theme: Navigation au clavier
+    type: ouverte
+    question: "Pourquoi faut-il rendre une interface utilisable au clavier, alors qu'on pense souvent que c'est seulement utile aux personnes aveugles ?"
+    reponse: |
+      - Le clavier est le dénominateur commun de nombreuses technologies d'assistance : lecteur d'écran, plage braille, contacteur, commande vocale qui simule le Tab.
+      - Il concerne aussi des personnes voyantes qui ne peuvent pas utiliser une souris : tremblement, amputation, fatigue motrice, ou simplement une souris en panne.
+      - Une interface réellement utilisable au clavier est, dans la plupart des cas, déjà utilisable avec ces autres technologies.
+    explication: "Question d'ouverture de chapitre : elle vérifie que le candidat ne réduit pas l'accessibilité clavier à un seul type de handicap."
+    lecon: clavier-focus
+
+  - id: a11y-int-tabindex-positif
+    niveau: junior
+    theme: Navigation au clavier
+    type: qcm
+    question: "Pourquoi un `tabindex` positif (`tabindex=\"2\"`, `tabindex=\"5\"`…) est-il déconseillé ?"
+    choix:
+      - "Parce qu'il n'est reconnu par aucun navigateur récent"
+      - "Parce qu'il impose un ordre de tabulation manuel prioritaire sur tout le reste de la page, difficile à maintenir cohérent dès que le contenu évolue"
+      - "Parce qu'il empêche complètement l'élément de recevoir le focus"
+      - "Parce qu'il est réservé aux éléments non interactifs comme les paragraphes"
+    reponse: 1
+    explication: "Les éléments à `tabindex` positif sont focalisés en premier, par ordre croissant, avant tous les autres. Ça fonctionne tant que rien ne change dans le formulaire, mais le moindre ajout de champ oublié dans la numérotation casse l'ordre. Faire correspondre l'ordre du DOM à l'ordre visuel est plus robuste."
+    lecon: clavier-focus
+
+  - id: a11y-int-focus-piege-inverse
+    niveau: confirme
+    theme: Navigation au clavier
+    type: ouverte
+    question: "Un menu accessible en overlay se ferme au clavier avec Échap en passant son conteneur à `display: none`. Un testeur signale qu'après la fermeture, il ne sait plus du tout où il se trouve sur la page. Que s'est-il passé et comment corriger ?"
+    reponse: |
+      - Un élément du menu avait le focus au moment de la fermeture ; en le masquant avec `display: none`, le focus n'est pas déplacé intelligemment, il retombe silencieusement sur le `<body>`.
+      - L'utilisateur perd tout repère : il doit reprendre sa navigation depuis le tout début de la page.
+      - Correction : déplacer explicitement le focus au moment de la fermeture, en général vers le bouton qui a ouvert le menu, avant ou pendant que le contenu disparaît.
+    explication: "C'est le « piège du focus inversé », moins connu que le focus trap classique mais tout aussi fréquent dans les menus et modales codés maison."
+    lecon: clavier-focus
+
+  - id: a11y-int-placeholder-label
+    niveau: junior
+    theme: Formulaires accessibles
+    type: qcm
+    question: "Un champ de recherche n'a que `<input type=\"text\" placeholder=\"Rechercher un produit\">`, sans `<label>`. Quel est le problème principal ?"
+    choix:
+      - "Aucun : le `placeholder` fonctionne exactement comme un `<label>` pour toutes les technologies d'assistance"
+      - "Le champ n'a pas de nom accessible durable : le texte disparaît à la saisie et n'est pas annoncé de façon fiable par tous les lecteurs d'écran"
+      - "Le formulaire ne pourra techniquement pas être soumis sans `<label>`"
+      - "Le seul problème est esthétique, il ne concerne pas l'accessibilité"
+    reponse: 1
+    explication: "Le `placeholder` n'est pas une étiquette : il disparaît dès la saisie et son annonce par les lecteurs d'écran est inégale selon les outils. Un `<label for>` associé au champ reste, lui, toujours disponible."
+    lecon: formulaires-accessibles
+
+  - id: a11y-int-erreur-liaison
+    niveau: confirme
+    theme: Formulaires accessibles
+    type: ouverte
+    question: "Comment relier correctement un message d'erreur à son champ de formulaire pour qu'un lecteur d'écran l'annonce, et que faut-il faire en plus à la soumission d'un formulaire qui contient plusieurs erreurs ?"
+    reponse: |
+      - Donner un `id` au message d'erreur et le référencer avec `aria-describedby` sur le champ concerné, en complément d'`aria-invalid="true"` qui signale l'état invalide.
+      - Cela fait annoncer le message d'erreur à la suite du libellé dès que le champ reçoit le focus — la simple proximité visuelle ne crée aucune relation programmatique.
+      - À la soumission, ajouter un résumé listant toutes les erreurs en haut du formulaire, avec un lien vers chaque champ, et déplacer le focus vers ce résumé : sans ce déplacement, rien ne prévient l'utilisateur au clavier ou au lecteur d'écran qu'une nouvelle erreur est apparue ailleurs dans la page.
+    explication: "Question centrale du chapitre : elle vérifie la maîtrise conjointe d'`aria-describedby`/`aria-invalid` et de la gestion du focus, souvent traitées séparément à tort."
+    lecon: formulaires-accessibles
+
+  - id: a11y-int-contraste-seuils
+    niveau: junior
+    theme: Couleurs et contrastes
+    type: qcm
+    question: "Quel rapport de contraste minimal un texte normal (ni large, ni gras au-delà de 14pt) doit-il atteindre par rapport à son fond pour respecter le niveau AA ?"
+    choix:
+      - "3:1"
+      - "4,5:1"
+      - "7:1"
+      - "Aucun seuil chiffré n'existe, seule une vérification visuelle est requise"
+    reponse: 1
+    explication: "4,5:1 est le seuil applicable au texte normal en niveau AA. 3:1 s'applique au texte large et aux composants d'interface ; 7:1 correspond au niveau AAA, plus exigeant, pas au niveau AA usuel."
+    lecon: couleurs-contrastes
+
+  - id: a11y-int-couleur-seule-info
+    niveau: confirme
+    theme: Couleurs et contrastes
+    type: ouverte
+    question: "Un graphique de suivi de commandes distingue « en cours », « expédiée » et « livrée » uniquement par trois couleurs différentes, sans légende ni texte. Pourquoi est-ce un problème, et comment le corriger sans perdre l'usage de la couleur ?"
+    reponse: |
+      - La couleur seule ne transmet aucune information à une personne daltonienne (confusion fréquente rouge-vert), à une personne qui ne perçoit pas les couleurs, ou qui consulte la page en niveaux de gris.
+      - La règle n'est pas de supprimer la couleur, qui reste un renfort utile, mais de ne jamais en faire le seul vecteur d'information.
+      - Correction : ajouter un motif ou une icône distincte par statut, un libellé textuel directement sur ou à côté de chaque élément, et une légende explicite — la couleur vient alors en complément, pas en unique support.
+    explication: "Vérifie que le candidat connaît la règle « pas de couleur seule » au-delà du seul exemple classique du lien dans un paragraphe, et sait proposer une correction concrète."
+    lecon: couleurs-contrastes
