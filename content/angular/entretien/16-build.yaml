@@ -1,0 +1,93 @@
+# Questions d'entretien — Build, outils et déploiement
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Confirmé ----------
+  - id: ang-build-esbuild-vite-roles
+    niveau: confirme
+    theme: Le système de build
+    type: ouverte
+    question: "Dans le builder par défaut d'Angular 21 (`@angular/build:application`), quel est le rôle respectif d'esbuild et de Vite ?"
+    reponse: |
+      - **esbuild** compile le TypeScript, résout et empaquette les modules, minifie et élimine le code mort (tree-shaking) — utilisé aussi bien par `ng build` que par la transformation des modules servis en développement.
+      - **Vite** est la couche serveur de développement utilisée par `ng serve` : il sert les modules au navigateur à la demande (modules ES natifs) et ne délègue qu'au fichier modifié la retransformation via esbuild, d'où un rechargement à chaud rapide même sur un projet volumineux.
+      - Ce duo remplace l'ancien pipeline basé sur webpack, sans changement en v21 par rapport aux versions précédentes (défaut depuis Angular 17/18).
+    explication: "Un bon candidat distingue bien : esbuild = compilation/empaquetage (dev et prod), Vite = uniquement la couche serveur de développement, pas un remplaçant d'esbuild."
+    lecon: systeme-build
+
+  - id: ang-build-environnement-choix-approche
+    niveau: confirme
+    theme: Configurer selon l'environnement
+    type: ouverte
+    question: "Une équipe hésite entre `fileReplacements` (configurations `angular.json`) et une configuration chargée à l'exécution pour gérer les différences entre recette et production. Quels critères vous font trancher ?"
+    reponse: |
+      - `fileReplacements` résout la valeur **au moment du build** : chaque environnement nécessite reconstruire l'application, donc un artefact différent par environnement. Simple, mais incompatible avec une politique « même artefact testé et promu partout ».
+      - Une **configuration chargée à l'exécution** (fichier JSON servi à côté du build, récupéré au démarrage avant l'affichage, par exemple via `provideAppInitializer()`) permet de ne construire qu'une seule fois : seule la configuration externe varie entre les environnements.
+      - Critère déterminant : le pipeline reconstruit-il à chaque déploiement, ou promeut-il un artefact déjà construit et déjà testé (image Docker identique de la recette à la production) ? Dans ce second cas, la configuration à l'exécution s'impose.
+      - Dans tous les cas, aucun secret (clé d'API, mot de passe) ne doit se trouver dans l'une ou l'autre : les deux sont livrées au navigateur.
+    explication: "Un bon candidat relie la contrainte de traçabilité/reproductibilité (un seul artefact testé) à l'impossibilité mécanique d'utiliser fileReplacements pour ce cas précis."
+    lecon: environnements
+
+  - id: ang-build-pipeline-ci-ordre
+    niveau: confirme
+    theme: Déployer et automatiser
+    type: ouverte
+    question: "Comment structureriez-vous un pipeline d'intégration continue pour une application Angular, et pourquoi cet ordre ?"
+    reponse: |
+      - **Installer** les dépendances (`npm ci`, reproductible à partir du fichier de verrouillage, à préférer à `npm install` en CI).
+      - **Vérifier** le format et le lint — rapide, permet d'échouer vite sur un problème trivial avant des étapes plus coûteuses.
+      - **Tester** (`ng test`) — inutile de construire du code dont le comportement n'est pas validé.
+      - **Construire** (`ng build --configuration production`) — produit l'artefact de déploiement.
+      - **Déployer** — publie l'artefact, généralement restreint à la branche principale ou à un tag de version.
+      - L'ordre suit un principe de coût croissant : chaque étape ne s'exécute que si la précédente réussit, ce qui limite le temps perdu et garantit qu'un artefact déployé a réellement été vérifié et testé.
+    lecon: deploiement-ci
+
+  # ---------- Senior ----------
+  - id: ang-build-budget-seuils
+    niveau: senior
+    theme: Le système de build
+    type: qcm
+    question: "Un budget `{ \"type\": \"initial\", \"maximumWarning\": \"500kb\", \"maximumError\": \"1mb\" }` est configuré. Le bundle initial pèse 780kb après un changement. Que se passe-t-il au build ?"
+    choix:
+      - "Le build réussit avec un avertissement affiché dans la sortie, puisque 780kb dépasse maximumWarning mais reste sous maximumError"
+      - "Le build échoue immédiatement, tout dépassement de maximumWarning étant traité comme une erreur bloquante"
+      - "Rien n'est affiché : les budgets ne sont vérifiés que si on ajoute explicitement --stats-json"
+      - "Angular réduit automatiquement la taille du bundle pour rester sous 500kb"
+    reponse: 0
+    explication: "maximumWarning et maximumError sont deux seuils indépendants pour un même budget : un dépassement du premier seul produit un avertissement non bloquant ; seul un dépassement de maximumError fait échouer le build. Un budget ne modifie jamais automatiquement le contenu du bundle."
+    lecon: systeme-build
+
+  - id: ang-build-secret-environment
+    niveau: senior
+    theme: Configurer selon l'environnement
+    type: qcm
+    question: "Un développeur propose de stocker la clé secrète d'un service de paiement dans `environment.production.ts` pour l'utiliser directement depuis un composant. Quel est le problème ?"
+    code: |
+      export const environment = {
+        production: true,
+        stripeSecretKey: 'sk_live_xxxxxxxxxxxx',
+      };
+    choix:
+      - "Aucun problème tant que fileReplacements est bien configuré pour la configuration production"
+      - "Ce fichier est compilé et livré tel quel dans le bundle JavaScript envoyé au navigateur : la clé secrète devient lisible par n'importe qui inspecte le code source ou le réseau"
+      - "Le problème est uniquement que TypeScript refusera de compiler une chaîne commençant par sk_live_"
+      - "Aucun problème si le champ production vaut true, cela indique déjà que la clé est sécurisée"
+    reponse: 1
+    explication: "Un fichier d'environnement (comme une configuration chargée à l'exécution) fait partie du code livré au client : tout secret qui s'y trouve est exposé publiquement. Une clé secrète de paiement doit rester côté serveur, jamais dans du code exécuté dans le navigateur — le paiement doit passer par un appel backend qui, lui, détient la clé."
+    lecon: environnements
+
+  - id: ang-build-ng-update-saut-version
+    niveau: senior
+    theme: Déployer et automatiser
+    type: qcm
+    question: "Un projet est encore en Angular 18 et doit passer à Angular 21. Quelle démarche `ng update` recommande-t-elle ?"
+    choix:
+      - "Exécuter directement `ng update @angular/cli@21 @angular/core@21` en une seule commande depuis Angular 18"
+      - "Mettre à jour une version majeure à la fois (18 → 19 → 20 → 21), en laissant les migrations automatiques de chaque étape s'appliquer avant de passer à la suivante"
+      - "Désinstaller complètement Angular et recréer le projet avec ng new en Angular 21, puis copier le code manuellement"
+      - "Mettre uniquement @angular/core à jour, @angular/cli restant indépendant depuis Angular 7"
+    reponse: 1
+    explication: "Depuis Angular 7, les versions majeures de @angular/core et @angular/cli sont alignées, et une montée de version se fait une version majeure à la fois : sauter directement de plusieurs versions majeures prive des migrations automatiques (schematics) prévues à chaque étape intermédiaire et peut casser silencieusement des fonctionnalités dépréciées entre-temps."
+    lecon: deploiement-ci

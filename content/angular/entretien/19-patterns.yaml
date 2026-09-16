@@ -1,0 +1,128 @@
+# Questions d'entretien — Patterns avancés et interopérabilité
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ang-pat-composants-dynamiques-cas
+    niveau: confirme
+    theme: Composants dynamiques
+    type: ouverte
+    question: "Dans quels cas créeriez-vous un composant dynamiquement plutôt que de le déclarer directement dans un template, et comment lui passez-vous des entrées ?"
+    reponse: |
+      - Cas typiques : boîtes de dialogue/notifications dont le nombre et le contenu ne sont pas connus à la compilation, formulaire dont les champs dépendent d'une configuration reçue à l'exécution (un composant différent par type de champ).
+      - Outil de base : `ViewContainerRef.createComponent(TypeDuComposant, options?)`, qui retourne un `ComponentRef`.
+      - Les entrées se passent avec `ComponentRef.setInput(nom, valeur)` — pas une affectation directe sur `instance` — pour que le composant soit correctement notifié, y compris en `OnPush`.
+      - Les sorties s'écoutent directement sur `ref.instance`. Il faut retenir le `ComponentRef` pour appeler `destroy()` au bon moment : rien ne le fait automatiquement.
+    explication: "Un bon candidat mentionne spontanément `setInput()` plutôt qu'une affectation directe, et sait que rien ne détruit automatiquement un composant créé dynamiquement."
+    lecon: composants-dynamiques
+
+  - id: ang-pat-setinput-vs-instance
+    niveau: senior
+    theme: Composants dynamiques
+    type: qcm
+    question: "Un composant créé avec `createComponent()` est en `OnPush`. Que se passe-t-il avec `ref.instance.message = 'nouveau texte'` (affectation directe) ?"
+    code: |
+      const ref = this.conteneur.createComponent(NotificationToast);
+      ref.instance.message = 'Commande enregistrée';
+    choix:
+      - "La propriété change en mémoire, mais rien ne prévient Angular : en `OnPush`, l'affichage ne se rafraîchit pas tant qu'aucun déclencheur reconnu (signal, `setInput()`, `markForCheck()`) ne survient"
+      - "Angular détecte toujours cette affectation, quelle que soit la stratégie de détection de changements"
+      - "Une exception est levée immédiatement, `instance` étant en lecture seule"
+      - "Le composant est automatiquement détruit et recréé"
+    reponse: 0
+    explication: "`instance` donne un accès direct à l'objet TypeScript sans passer par le mécanisme de détection de changements. `setInput()` existe précisément pour marquer le composant pour vérification en plus de mettre à jour la valeur."
+    lecon: composants-dynamiques
+
+  - id: ang-pat-elements-cas-limites
+    niveau: confirme
+    theme: Angular Elements
+    type: ouverte
+    question: "Quand utiliseriez-vous Angular Elements plutôt qu'un composant Angular classique, et quelles limites faut-il anticiper ?"
+    reponse: |
+      - Cas d'usage : exposer un widget Angular (avis produit, calculateur, chat) dans un site tiers non-Angular, ou dans une grande application existante migrée progressivement.
+      - Mécanisme : `createCustomElement(Composant, { injector })` puis `customElements.define('nom-balise', ...)` — la balise devient utilisable dans n'importe quelle page HTML.
+      - Entrées simples → attributs HTML (chaînes) ; entrées complexes (objets, tableaux) → propriétés JavaScript de l'élément, un attribut ne pouvant contenir qu'une chaîne.
+      - Sorties → `CustomEvent` DOM, valeur dans `event.detail`.
+      - Limites : chaque élément exporté isolément embarque le runtime nécessaire à son fonctionnement (poids par widget), et il faut penser à `CUSTOM_ELEMENTS_SCHEMA` dans l'autre sens (consommer un Web Component tiers dans Angular).
+    explication: "Un bon candidat distingue clairement attribut (chaîne) et propriété JavaScript (n'importe quel type) pour les entrées complexes."
+    lecon: angular-elements
+
+  - id: ang-pat-elements-schema
+    niveau: senior
+    theme: Angular Elements
+    type: qcm
+    question: "Ce template Angular consomme un Web Component tiers jamais déclaré comme composant Angular. Que se passe-t-il sans intervention ?"
+    code: |
+      @Component({
+        selector: 'app-editeur-avis',
+        template: `<emoji-picker (emoji-click)="ajouter($event)" />`,
+      })
+      export class EditeurAvis {}
+    choix:
+      - "Le compilateur de templates lève une erreur, la balise et l'attribut n'étant reconnus ni comme composant Angular ni comme élément HTML standard"
+      - "Angular ignore silencieusement la balise et n'affiche rien"
+      - "Angular charge automatiquement la définition du Web Component depuis un registre public"
+      - "Le code compile sans problème, un événement DOM personnalisé étant toujours accepté nativement par Angular"
+    reponse: 0
+    explication: "Sans `schemas: [CUSTOM_ELEMENTS_SCHEMA]` dans les métadonnées du composant, le compilateur refuse toute balise ou propriété qu'il ne reconnaît pas. Ce schéma doit être ajouté explicitement, et de préférence limité au composant qui en a réellement besoin."
+    lecon: angular-elements
+
+  - id: ang-pat-animations-statut
+    niveau: confirme
+    theme: Animations
+    type: ouverte
+    question: "Quel est le statut de `@angular/animations` en Angular 21, et quelle est l'approche recommandée pour du nouveau code ?"
+    reponse: |
+      - `@angular/animations` est **déprécié depuis la v20.2** (donc pendant toute la ligne v21), avec une intention de suppression annoncée pour la **v23**.
+      - L'approche recommandée pour tout nouveau code est le **CSS natif**, piloté par les attributs de template `animate.enter` et `animate.leave` : ils appliquent une classe CSS classique (`@keyframes`, `transition`) au bon moment du cycle de vie de l'élément.
+      - `animate.leave` retarde la suppression réelle du DOM jusqu'à la fin de l'animation/transition CSS déclenchée par la classe.
+      - Les deux systèmes ne sont pas compatibles dans le même composant : migrer signifie retirer entièrement les `trigger()` existants.
+    explication: "Un bon candidat sait situer précisément la dépréciation (v20.2) et ne pas confondre `animate.enter`/`animate.leave` avec une nouvelle API TypeScript — c'est du CSS piloté par un attribut de template."
+    lecon: animations
+
+  - id: ang-pat-animations-melange
+    niveau: senior
+    theme: Animations
+    type: qcm
+    question: "Un composant utilise à la fois un `trigger()` de `@angular/animations` et un attribut `animate.leave`. Que se passe-t-il ?"
+    code: |
+      @Component({
+        animations: [trigger('etat', [/* ... */])],
+        template: `<div animate.leave="disparition" [@etat]="etatCourant()">...</div>`,
+      })
+      export class CarteProduit {}
+    choix:
+      - "Les deux systèmes s'exécutent en parallèle sans conflit"
+      - "Les deux systèmes d'animation ne sont pas compatibles au sein d'un même composant : ils ne peuvent pas être combinés"
+      - "`animate.leave` est automatiquement ignoré tant que `@angular/animations` est présent dans le composant"
+      - "Seul `animate.leave` fonctionne, le `trigger()` legacy étant silencieusement désactivé"
+    reponse: 1
+    explication: "La documentation officielle est explicite : les animations historiques et les animations natives ne peuvent pas coexister dans le même composant. Migrer un composant vers le CSS natif implique de retirer entièrement ses `trigger()` legacy."
+    lecon: animations
+
+  - id: ang-pat-interop-zoneless
+    niveau: senior
+    theme: Interopérabilité
+    type: ouverte
+    question: "Une librairie tierce (carte interactive, éditeur riche…) modifie un état sans passer par un signal ni un événement de template. Que se passe-t-il en mode zoneless, et comment corriger le problème ?"
+    reponse: |
+      - En zoneless, aucun mécanisme global ne prévient Angular d'une mutation venant d'un code externe : sans signal, sans événement de template, sans `AsyncPipe`, l'affichage reste figé même si la donnée a bien changé en mémoire.
+      - Solution la plus robuste : recopier la valeur reçue dans un **signal** (`position.set(nouvellePosition)`) dès le callback de la librairie ; le template qui lit ce signal se rafraîchit alors normalement, sans code de détection de changements supplémentaire à chaque point d'entrée.
+      - Solution de secours : injecter `ChangeDetectorRef` et appeler `markForCheck()` explicitement dans le callback.
+      - `NgZone.runOutsideAngular()` reste par ailleurs utile en zoneless pour du code fréquent ou coûteux (défilement, animation) — l'équipe Angular précise qu'il n'y a pas besoin de le retirer pour rester compatible zoneless.
+    explication: "Un bon candidat distingue la solution structurelle (traduire l'état externe en signal une bonne fois) de la solution ponctuelle (`markForCheck()` à chaque callback), et sait que zoneless ne dispense pas de gérer explicitement ce cas."
+    lecon: interop-librairies
+
+  - id: ang-pat-micro-frontends-quand
+    niveau: senior
+    theme: Micro-frontends
+    type: ouverte
+    question: "Une équipe propose de découper l'application en micro-frontends pour « mieux organiser le code ». Comment évaluez-vous cette proposition en entretien ?"
+    reponse: |
+      - Premier réflexe : identifier le problème réel visé. Les micro-frontends résolvent un problème **organisationnel** — plusieurs équipes réellement autonomes qui doivent déployer indépendamment, à des rythmes différents — pas un problème de structuration du code en soi.
+      - Si le vrai besoin est la modularité et la réutilisation de code pour une seule équipe (ou des équipes qui déploient ensemble de toute façon), un **monorepo** avec des frontières de module imposées (Nx ou équivalent) répond au même besoin sans le coût d'exécution distribuée.
+      - Coûts réels des micro-frontends à mettre en balance : versions d'Angular à aligner entre équipes (ou runtimes dupliqués si elles divergent), fuite de styles entre applications indépendantes, état/authentification partagés à concevoir explicitement, débogage cross-application plus difficile.
+      - Un bon candidat sait citer au moins une approche concrète (Module Federation, Web Components, composition côté serveur, applications séparées par route) et, surtout, sait dire non quand le problème ne justifie pas cette complexité.
+    explication: "La réponse attendue distingue clairement le problème organisationnel du problème technique, et ne se contente pas de décrire les micro-frontends : elle inclut un avis argumenté sur leur pertinence dans le cas posé."
+    lecon: micro-frontends

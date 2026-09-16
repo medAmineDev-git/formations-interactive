@@ -1,0 +1,95 @@
+# Questions d'entretien — Injection de dépendances avancée
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Confirmé ----------
+  - id: ang-di-inject-fonction-avantage
+    niveau: confirme
+    theme: "inject() et contexte d'injection"
+    type: ouverte
+    question: "Quel est l'avantage principal de inject() par rapport à l'injection par constructeur, et dans quels cas permet-il des choses que le constructeur ne permet pas ?"
+    reponse: |
+      - `inject()` récupère une dépendance depuis l'injecteur actif, avec exactement le même résultat qu'un paramètre de constructeur — ce n'est pas un mécanisme différent, juste une autre syntaxe.
+      - Son intérêt : il fonctionne dans des endroits où un paramètre de constructeur est impossible — un **initialiseur de champ**, la fonction `factory` d'un `InjectionToken` ou d'un provider, un **guard**, un **resolver**, un **intercepteur fonctionnel**, ou une fonction utilitaire réutilisable partagée entre plusieurs services.
+      - Il permet aussi d'écrire des fonctions d'aide autour de `inject()` (par exemple une fonction qui injecte un service et retourne un logger préfixé), réutilisables dans plusieurs classes sans dupliquer de code de constructeur.
+      - Ce qui rend `inject()` valide, c'est le **contexte d'exécution** au moment de l'appel (construction d'une classe gérée par le DI, ou code passé à `runInInjectionContext()`), pas la position du code dans le fichier.
+    explication: "Un bon candidat insiste sur le fait que ce n'est pas juste une question de style : inject() débloque des patterns (fonctions utilitaires, guards fonctionnels) impossibles avec l'injection par constructeur seule."
+    lecon: inject-fonction
+
+  - id: ang-di-ng0203
+    niveau: confirme
+    theme: "inject() et contexte d'injection"
+    type: qcm
+    question: "Ce service lève une erreur au runtime dès qu'on appelle rafraichir(). Quelle est la cause ?"
+    code: |
+      @Injectable({ providedIn: 'root' })
+      export class StatsService {
+        private http!: HttpClient;
+
+        rafraichir() {
+          this.http = inject(HttpClient);
+          return this.http.get('/api/stats');
+        }
+      }
+    choix:
+      - "HttpClient doit être importé depuis @angular/core et non @angular/common/http"
+      - "inject() est appelé dans une méthode ordinaire, en dehors du contexte d'injection : celui-ci s'est refermé dès que l'instance de StatsService a été construite"
+      - "providedIn: 'root' est incompatible avec l'utilisation de inject() dans les méthodes"
+      - "Il faut appeler inject() avant la déclaration de la classe, en dehors du décorateur @Injectable"
+    reponse: 1
+    explication: "Le contexte d'injection ne dure que le temps de la construction (constructeur, initialiseurs de champ). rafraichir() est une méthode appelée après coup, potentiellement bien après la création du service : inject() y échoue avec NG0203. La correction est de déplacer l'appel dans un initialiseur de champ (private http = inject(HttpClient);)."
+    lecon: inject-fonction
+
+  - id: ang-di-injectiontoken-pourquoi
+    niveau: confirme
+    theme: Jetons d'injection
+    type: ouverte
+    question: "Pourquoi ne peut-on pas utiliser une interface TypeScript comme jeton d'injection, et comment InjectionToken<T> résout-il ce problème ?"
+    reponse: |
+      - Les interfaces TypeScript sont purement structurelles : elles n'ont **aucune existence à l'exécution**, elles disparaissent entièrement à la compilation. Or Angular a besoin d'une valeur réelle pour servir de clé de recherche dans l'injecteur.
+      - `InjectionToken<T>` résout ça : c'est un objet qui existe bel et bien au runtime, tout en portant le type `T` côté TypeScript — l'injection reste typée statiquement (`inject(MON_JETON)` renvoie un `T`).
+      - Au-delà des interfaces, `InjectionToken` sert aussi pour des valeurs qui ne sont pas des classes : configuration (URL d'API, taux de TVA par défaut), ou API du navigateur qu'on veut pouvoir remplacer en SSR (`DOCUMENT`).
+      - Une option `factory` peut lui donner une valeur par défaut, calculée seulement à la première injection (tree-shakable), sans avoir à ajouter le jeton dans un tableau `providers`.
+    lecon: jetons-injection
+
+  # ---------- Senior ----------
+  - id: ang-di-useexisting-vs-useclass
+    niveau: senior
+    theme: Providers avancés
+    type: qcm
+    question: "Une équipe veut renommer un service NotificationService en AlerteService dans tout le code, sans tout réécrire d'un coup, et sans que les deux versions du nom pointent vers des instances différentes. Quel provider choisir ?"
+    code: |
+      // Option 1
+      providers: [
+        AlerteService,
+        { provide: NotificationService, useClass: AlerteService },
+      ]
+
+      // Option 2
+      providers: [
+        AlerteService,
+        { provide: NotificationService, useExisting: AlerteService },
+      ]
+    choix:
+      - "Les deux options sont strictement équivalentes"
+      - "Option 2 (useExisting) : NotificationService devient un alias vers l'unique instance d'AlerteService, alors qu'Option 1 (useClass) créerait une seconde instance séparée"
+      - "Option 1 (useClass) est la seule qui compile, useExisting exige que les deux classes partagent une interface commune explicite"
+      - "Aucune des deux options ne fonctionne : renommer un service impose de passer par un InjectionToken"
+    reponse: 1
+    explication: "useClass instancie la classe indiquée séparément pour ce jeton : injecter NotificationService et injecter AlerteService donneraient deux objets distincts, avec potentiellement un état divergent. useExisting ne crée rien de nouveau : NotificationService devient un simple alias vers l'instance déjà résolue pour AlerteService — exactement ce qu'il faut pour une migration progressive de nom sans dupliquer l'état."
+    lecon: providers-avances
+
+  - id: ang-di-app-initializer-remplacement
+    niveau: senior
+    theme: Providers avancés
+    type: ouverte
+    question: "Le jeton APP_INITIALIZER est déprécié. Par quoi le remplacer en Angular 21, et qu'est-ce que ça change concrètement dans l'écriture du code ?"
+    reponse: |
+      - `APP_INITIALIZER` est déprécié depuis Angular 19, au profit de **`provideAppInitializer(fonctionInitialisation)`**.
+      - Avec l'ancien jeton, il fallait fournir un tableau de fonctions via un provider `multi: true` — plusieurs entrées `{ provide: APP_INITIALIZER, useValue: ..., multi: true }` à assembler.
+      - `provideAppInitializer()` remplace ça par un appel direct de fonction, exécutée dans un contexte d'injection (donc `inject()` y fonctionne directement) au démarrage de l'application, avant le premier rendu.
+      - Le comportement asynchrone est conservé à l'identique : si la fonction renvoie une `Promise` ou un `Observable`, l'initialisation de l'application attend sa résolution avant de continuer — utile pour charger une configuration distante avant d'afficher quoi que ce soit.
+    explication: "Un bon candidat sait citer le mot-clé exact (provideAppInitializer) plutôt que de rester vague sur « il existe une nouvelle API », et sait expliquer que le comportement (attente d'une Promise/Observable) reste identique — seule la syntaxe change."
+    lecon: providers-avances

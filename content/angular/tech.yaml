@@ -1,0 +1,104 @@
+nom: Angular
+icone: 🅰️
+couleur: "#dd0031"
+description: Le framework front-end de Google pour construire des applications web, en TypeScript. Contenu basé sur Angular 21.
+
+# Ordre du parcours. Chaque leçon (lecons/<chapitre>/*.md) indique son chapitre dans son frontmatter.
+chapitres:
+  # ---------- Débutant ----------
+  - id: demarrer
+    niveau: debutant
+    titre: Démarrer avec Angular
+    description: Le CLI, la structure d'un projet, le composant, les templates et le contrôle de flux.
+
+  - id: signaux
+    niveau: debutant
+    titre: Les signaux
+    description: "Le cœur d'Angular moderne : état réactif, valeurs calculées, effets, entrées et sorties."
+
+  - id: composition
+    niveau: debutant
+    titre: Composer des composants
+    description: Communication entre composants, projection de contenu, directives et pipes.
+
+  - id: formulaires
+    niveau: debutant
+    titre: Les formulaires
+    description: Formulaires réactifs, validation, formulaires dynamiques et typés.
+
+  - id: http
+    niveau: debutant
+    titre: Communiquer avec une API
+    description: HttpClient, requêtes typées, intercepteurs et gestion des erreurs.
+
+  - id: routage
+    niveau: debutant
+    titre: Le routeur
+    description: Routes, paramètres, chargement différé et protection des routes.
+
+  # ---------- Intermédiaire ----------
+  - id: rxjs
+    niveau: intermediaire
+    titre: RxJS avec Angular
+    description: Observables, opérateurs essentiels et passerelles entre RxJS et les signaux.
+
+  - id: etat
+    niveau: intermediaire
+    titre: Gestion d'état
+    description: Services à signaux, providers hiérarchiques, stores, et quand un store devient nécessaire.
+
+  - id: di-avancee
+    niveau: intermediaire
+    titre: Injection de dépendances avancée
+    description: "inject(), jetons d'injection, portées, providers multiples et fabriques."
+
+  - id: performance
+    niveau: intermediaire
+    titre: Performance et détection de changements
+    description: "Zoneless, OnPush, @defer, images optimisées et listes performantes."
+
+  - id: tests-angular
+    niveau: intermediaire
+    titre: Tester une application Angular
+    description: Tests de composants, de services et d'appels HTTP, avec le runner de tests d'Angular 21.
+
+  - id: architecture
+    niveau: intermediaire
+    titre: Architecture et bonnes pratiques
+    description: Organisation d'un projet, composants intelligents et de présentation, conventions officielles.
+
+  - id: i18n-a11y
+    niveau: intermediaire
+    titre: Internationalisation et accessibilité
+    description: Traduire une application, formater dates et nombres, rendre l'interface accessible.
+
+  # ---------- Avancé ----------
+  - id: ssr
+    niveau: avance
+    titre: SSR, hydratation et SEO
+    description: Rendu côté serveur, hydratation (y compris incrémentale), pré-rendu et référencement.
+
+  - id: securite
+    niveau: avance
+    titre: Sécurité côté front
+    description: XSS et sanitization, CSP, authentification OAuth2/OIDC, stockage des jetons.
+
+  - id: build-deploiement
+    niveau: avance
+    titre: Build, outils et déploiement
+    description: Le système de build, les budgets, les environnements, le déploiement et l'intégration continue.
+
+  - id: librairies
+    niveau: avance
+    titre: Librairies et monorepos
+    description: Créer et publier une librairie Angular, organiser un workspace à plusieurs projets.
+
+  - id: pwa
+    niveau: avance
+    titre: PWA et mode hors-ligne
+    description: Service worker Angular, stratégies de cache, mises à jour et installation.
+
+  - id: patterns-avances
+    niveau: avance
+    titre: Patterns avancés et interopérabilité
+    description: Composants dynamiques, Angular Elements, animations, intégration de librairies tierces.

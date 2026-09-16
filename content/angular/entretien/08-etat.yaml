@@ -1,0 +1,84 @@
+# Questions d'entretien — Gestion d'état
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ang-etat-service-vs-ngrx
+    niveau: confirme
+    theme: Service maison ou NgRx
+    type: ouverte
+    question: "Dans quel cas choisiriez-vous NgRx SignalStore plutôt qu'un simple service à signaux `providedIn: 'root'` ?"
+    reponse: |
+      - Un service à signaux (`WritableSignal` privé + `asReadonly()`/`computed()`) suffit pour la grande majorité des états applicatifs simples à moyens.
+      - NgRx SignalStore devient intéressant quand plusieurs équipes ou fonctionnalités ont besoin de **conventions cohérentes** (même vocabulaire `withState`/`withComputed`/`withMethods`), ou pour profiter des outils de développement de l'écosystème NgRx.
+      - Le NgRx Store classique (actions/reducers/effects) va plus loin encore dans la structure imposée, avec davantage de code de câblage — pertinent pour un état global très complexe et une grande équipe.
+      - Introduire NgRx pour un état trivial (une seule valeur partagée par un composant) est de la sur-ingénierie : un service à signaux reste le bon point de départ par défaut.
+    explication: "Un bon candidat évite de répondre « toujours NgRx » ou « jamais NgRx » : la réponse dépend de la taille de l'équipe, de la complexité de l'état, et du besoin de conventions partagées."
+    lecon: ngrx-signalstore
+
+  - id: ang-etat-asreadonly-vs-writable
+    niveau: confirme
+    theme: Un store maison
+    type: qcm
+    question: "Pourquoi un service d'état expose-t-il généralement `panier.asReadonly()` plutôt que le `WritableSignal` `panier` lui-même ?"
+    choix:
+      - "Parce qu'un `WritableSignal` ne peut techniquement pas être lu depuis un template Angular"
+      - "Pour empêcher les composants consommateurs de modifier l'état directement (`set()`/`update()`) en contournant les méthodes du service, qui portent la logique métier et garantissent la cohérence"
+      - "Parce qu'`asReadonly()` améliore les performances de détection de changements"
+      - "Parce qu'un `WritableSignal` ne peut pas être utilisé dans un `computed()`"
+    reponse: 1
+    explication: "C'est une question d'encapsulation, pas de performance ni de limitation technique : exposer le `WritableSignal` permettrait à n'importe quel composant d'écrire l'état sans passer par les méthodes du service (`ajouter()`, `retirer()`…), donc sans validation ni garantie de cohérence."
+    lecon: service-signaux
+
+  - id: ang-etat-root-utilisateur-deconnecte
+    niveau: senior
+    theme: Portée des services
+    type: ouverte
+    question: "Un service `UtilisateurStore` est déclaré `providedIn: 'root'`. Quel piège de conception faut-il anticiper, et comment le corriger ?"
+    reponse: |
+      - `providedIn: 'root'` crée un singleton qui vit pour **toute la durée de l'application**, pas seulement pour la session d'un utilisateur connecté.
+      - Sans remise à zéro explicite, l'état (profil, préférences, panier) peut rester en mémoire après une déconnexion : le prochain utilisateur sur le même appareil pourrait voir des données de l'ancien — un vrai problème de confidentialité, pas juste un bug d'affichage.
+      - Correction : exposer une méthode de réinitialisation (`reinitialiser()` ou équivalent) appelée explicitement par le flux de déconnexion, qui remet chaque signal à son état initial.
+      - Alternative selon le contexte : un état sensible peut aussi être fourni à un niveau plus limité (route protégée) plutôt qu'en `root`, s'il n'a pas besoin de survivre à toute l'application.
+    explication: "Un bon candidat cite spontanément le risque de confidentialité, pas seulement « un bug d'affichage » — c'est ce qui distingue une réponse senior."
+    lecon: providers-portees
+
+  - id: ang-etat-portee-route-partage
+    niveau: confirme
+    theme: Portée des services
+    type: qcm
+    question: "Un `CatalogueFiltresStore` est fourni dans les `providers` de la route `/catalogue`, qui a deux routes filles `/catalogue/liste` et `/catalogue/carte`. Que se passe-t-il quand on navigue de l'une à l'autre ?"
+    choix:
+      - "L'état des filtres est réinitialisé, car chaque route fille reçoit sa propre instance du store"
+      - "L'état des filtres est conservé : les deux routes filles partagent le même injecteur créé au niveau de la route parente, détruit seulement en quittant complètement `/catalogue`"
+      - "Une erreur `NullInjectorError` est levée, car les routes filles n'ont pas accès aux `providers` du parent"
+      - "L'état devient global, comme s'il avait été déclaré `providedIn: 'root'`"
+    reponse: 1
+    explication: "Un `providers` déclaré sur une route crée un injecteur partagé par cette route et **toutes ses routes filles**. Naviguer entre `/catalogue/liste` et `/catalogue/carte` reste dans le même injecteur, donc la même instance du store — l'état des filtres survit à la navigation interne, et n'est détruit qu'en quittant la branche `/catalogue`."
+    lecon: providers-portees
+
+  - id: ang-etat-serveur-vs-partage
+    niveau: confirme
+    theme: Patterns d'état
+    type: ouverte
+    question: "Quelle est la différence entre un état « partagé » (le panier) et un état « serveur » (la liste des produits), et pourquoi cette distinction compte-t-elle en pratique ?"
+    reponse: |
+      - L'état **partagé** (panier, utilisateur connecté) appartient à l'application, qui en est la source de vérité : elle le modifie directement et il reste valide tant que rien ne le change explicitement.
+      - L'état **serveur** (produits, commandes) est une **copie locale** d'une donnée qui appartient réellement au backend : elle peut devenir périmée pendant que l'utilisateur navigue, sans que l'application le sache automatiquement.
+      - Conséquence pratique : l'état serveur a besoin d'une stratégie explicite de chargement, d'erreur et d'invalidation/rechargement (via `resource()`/`httpResource()` ou un appel `HttpClient` classique), que l'état partagé n'a pas besoin de gérer.
+      - Les confondre — par exemple charger des produits une seule fois dans un signal partagé sans jamais les recharger — fait afficher des données obsolètes sans que rien ne le signale.
+    lecon: etat-patterns
+
+  - id: ang-etat-url-comme-etat
+    niveau: senior
+    theme: Patterns d'état
+    type: ouverte
+    question: "Pourquoi synchroniser un filtre de recherche (catégorie, tri) avec les paramètres de requête de l'URL plutôt qu'avec un simple signal de composant ?"
+    reponse: |
+      - Un signal local disparaît au rafraîchissement de la page, n'est pas partageable par lien, et n'est pas restauré par le bouton précédent du navigateur.
+      - Mettre le filtre dans l'URL (`?categorie=peripheriques&tri=prix`) en fait un état **partageable, persistant au rafraîchissement, et navigable** — l'utilisateur retrouve exactement la même vue en revenant en arrière ou en rouvrant le lien.
+      - En Angular 21, `withComponentInputBinding()` (sur `provideRouter`) permet de lier automatiquement un paramètre de requête à un `input()` du composant routé, sans code de synchronisation manuel.
+      - Cela ne dispense pas de distinguer le filtre (état d'interface, dans l'URL) du résultat filtré (état serveur, avec son propre cycle de chargement) : ce sont deux données différentes, à ne pas confondre.
+    explication: "Un candidat senior relie spontanément ce choix à l'expérience utilisateur concrète (lien partageable, bouton précédent) plutôt que de le présenter comme un détail technique isolé."
+    lecon: etat-patterns

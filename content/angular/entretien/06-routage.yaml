@@ -1,0 +1,100 @@
+# Questions d'entretien Angular — chapitre « Le routeur »
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: ang-rout-activer
+    niveau: junior
+    theme: Définir des routes
+    type: ouverte
+    question: "Comment déclare-t-on et active-t-on les routes d'une application Angular 21 standalone ?"
+    reponse: |
+      - Les routes se déclarent dans un tableau typé **`Routes`** (par convention `app.routes.ts`) : chaque entrée associe un `path` à un `component`.
+      - Ce tableau est activé avec **`provideRouter(routes)`**, ajouté à la liste `providers` de `app.config.ts`.
+      - Le composant racine place un **`<router-outlet>`** dans son template : c'est l'endroit où le routeur affiche le composant de la route active.
+      - La navigation se fait avec `routerLink` (dans un template) ou `inject(Router).navigate(...)` (par code).
+    lecon: routes-bases
+
+  - id: ang-rout-wildcard
+    niveau: junior
+    theme: Définir des routes
+    type: qcm
+    question: "Pourquoi la route `{ path: '**', component: PageIntrouvable }` doit-elle toujours être la dernière du tableau `Routes` ?"
+    choix:
+      - "Parce qu'Angular refuse de compiler si elle est ailleurs"
+      - "Parce que le routeur teste les routes dans l'ordre et s'arrête à la première correspondance : `**` correspond à tout, elle rendrait les routes suivantes inaccessibles si elle était avant"
+      - "Parce que les routes wildcard sont toujours chargées en dernier par le navigateur, quel que soit leur ordre dans le fichier"
+      - "Ce n'est qu'une convention de style, sans effet sur le comportement"
+    reponse: 1
+    explication: "Le point à retenir en entretien : le routeur Angular n'est pas « le plus spécifique gagne », c'est **le premier qui correspond, dans l'ordre du tableau**. C'est une source d'erreur fréquente chez les débutants."
+    lecon: routes-bases
+
+  - id: ang-rout-param-vs-query
+    niveau: junior
+    theme: Paramètres de route
+    type: qcm
+    question: "Quelle URL correspond à la route `{ path: 'produits/:id', component: FicheProduit }` ?"
+    code: |
+      { path: 'produits/:id', component: FicheProduit }
+    choix:
+      - "/produits?id=12"
+      - "/produits/12"
+      - "/produits#12"
+      - "/produits/id/12"
+    reponse: 1
+    explication: "`:id` est un paramètre de **chemin** : sa valeur remplace directement le segment dans l'URL (`/produits/12`), à ne pas confondre avec un paramètre de requête (`?id=12`, après un `?`) qui ne changerait pas la route sélectionnée."
+    lecon: parametres-routes
+
+  # ---------- Confirmé ----------
+  - id: ang-rout-input-binding
+    niveau: confirme
+    theme: Paramètres de route
+    type: ouverte
+    question: "Comment un composant routé peut-il recevoir un paramètre de route directement via `input()`, sans injecter `ActivatedRoute` ?"
+    reponse: |
+      - Il faut activer **`withComponentInputBinding()`** sur `provideRouter(routes, withComponentInputBinding())`, dans `app.config.ts`. Ce n'est pas actif par défaut.
+      - Une fois activée, tout `input()` du composant routé dont le nom correspond à un paramètre de chemin, à un paramètre de requête, ou à une clé de la propriété `data` de la route, est rempli **automatiquement** par le routeur — y compris à chaque navigation ultérieure.
+      - Sans cette fonctionnalité, il faut injecter `ActivatedRoute` et lire `paramMap`/`queryParamMap` (idéalement l'Observable, pas le `snapshot`, pour rester réactif si le composant est réutilisé entre deux navigations).
+    explication: "Bon réflexe en entretien : préciser que le `snapshot` ne se met pas à jour si Angular réutilise la même instance de composant (ex. deux fiches produit successives), contrairement à `paramMap` ou à l'input binding."
+    lecon: parametres-routes
+
+  - id: ang-rout-lazy-vs-defer
+    niveau: confirme
+    theme: Chargement différé
+    type: ouverte
+    question: "Quelle est la différence entre le lazy loading d'une route (`loadComponent`/`loadChildren`) et `@defer` dans un template ? Comment vérifier qu'un découpage fonctionne réellement ?"
+    reponse: |
+      - `loadComponent`/`loadChildren` différent le chargement d'une **route entière**, déclenché par la **navigation** vers cette route. Chaque route différée devient un chunk séparé au build.
+      - `@defer` différe le chargement d'un **fragment de template**, à l'intérieur d'une route déjà chargée, selon un déclencheur choisi (`on viewport`, `on interaction`...) — pas une navigation.
+      - Pour vérifier qu'un découpage fonctionne, il faut lire la sortie de `ng build` : elle distingue les « Initial chunk files » (bundle de départ) des « Lazy chunk files » (chargés à la demande). Un import statique oublié ailleurs dans le code peut faire échouer silencieusement un découpage prévu — seule cette sortie le confirme.
+    lecon: lazy-loading
+
+  - id: ang-rout-canmatch
+    niveau: confirme
+    theme: Guards
+    type: qcm
+    question: "Deux routes partagent le même `path: 'produits'`. La première a un `canMatch` qui renvoie `false`. Que fait le routeur ?"
+    code: |
+      { path: 'produits', component: ListeProduitsBeta, canMatch: [betaGuard] },
+      { path: 'produits', component: ListeProduits },
+    choix:
+      - "Il bloque la navigation, comme le ferait un `canActivate` refusé"
+      - "Il ignore la première route et essaie la route suivante du tableau, qui a le même chemin"
+      - "Il affiche une erreur de configuration au démarrage, car deux routes ne peuvent pas partager le même `path`"
+      - "Il affiche les deux composants en même temps"
+    reponse: 1
+    explication: "C'est la différence clé entre `canMatch` et les autres guards : un refus de `canMatch` ne bloque pas, il fait continuer la recherche dans le tableau `Routes`, comme si la route refusée n'existait pas. C'est le mécanisme prévu pour proposer une route alternative sur le même chemin (feature flag, rôle utilisateur...)."
+    lecon: guards-resolvers
+
+  - id: ang-rout-resolver-limites
+    niveau: confirme
+    theme: Resolvers
+    type: ouverte
+    question: "Qu'apporte un `ResolveFn` par rapport à un chargement de données dans le composant lui-même ? Quelle est sa principale limite ?"
+    reponse: |
+      - Un `ResolveFn` **précharge** une donnée avant que la route ne s'active : le composant s'affiche déjà avec sa donnée disponible (via `route.data` ou l'input binding), sans avoir à gérer un état de chargement (`isLoading`) dans le composant.
+      - Limite principale : la navigation **attend** que le resolver se termine. Si l'appel est lent, l'utilisateur reste sur l'ancienne page, sans indicateur de progression, pendant l'attente — contrairement à un chargement dans le composant, où l'on peut afficher un état de chargement visible dès l'affichage de la route.
+      - Piège classique : un Observable qui n'émet jamais de complétion (flux oublié, absence de `take(1)`) bloque la navigation indéfiniment, sans erreur.
+    lecon: guards-resolvers

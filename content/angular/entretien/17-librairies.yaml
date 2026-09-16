@@ -1,0 +1,67 @@
+questions:
+  - id: ang-lib-api-publique
+    niveau: confirme
+    theme: Créer une librairie
+    type: ouverte
+    question: "Qu'est-ce que l'API publique d'une librairie Angular, et pourquoi faut-il faire attention à ce qui est exporté depuis public-api.ts ?"
+    reponse: |
+      - public-api.ts est le seul point d'entrée qui distingue ce qui est accessible aux consommateurs de ce qui reste une implémentation interne.
+      - Tout ce qui y est exporté (composants, services, types) devient utilisable depuis l'extérieur, que ce soit voulu ou non.
+      - Une fois qu'un élément est exposé, le retirer ou le modifier de façon incompatible devient une rupture pour les consommateurs qui l'utilisent, même s'il n'était pas destiné à être stable.
+      - En pratique, on exporte explicitement ce qui doit être public plutôt que d'utiliser un export * large sur tout un dossier, pour éviter d'exposer par accident des détails d'implémentation.
+    explication: "Un bon candidat relie l'API publique à la notion de contrat : ce qui est exporté devient un engagement vis-à-vis des consommateurs, pas seulement un détail technique."
+    lecon: creer-librairie
+
+  - id: ang-lib-peer-dependencies
+    niveau: confirme
+    theme: Créer une librairie
+    type: qcm
+    question: "Pourquoi le package.json d'une librairie Angular publiée doit-il déclarer @angular/core en peerDependencies plutôt qu'en dependencies ?"
+    choix:
+      - "Pour qu'Angular reste en un seul exemplaire dans l'application consommatrice ; une dependency normale risquerait d'en installer une seconde copie, source d'erreurs d'injection ou d'instances dupliquées"
+      - "Parce que peerDependencies installe automatiquement la bonne version d'Angular à la place du consommateur"
+      - "Uniquement pour respecter une convention de nommage npm sans effet réel sur l'installation"
+      - "Parce que dependencies est réservé aux librairies non-Angular"
+    reponse: 0
+    explication: "C'est l'application consommatrice qui doit fournir Angular, pas la librairie. Cette question revient souvent car l'erreur (mettre Angular en dependencies) provoque des symptômes déroutants côté consommateur, loin de la cause réelle."
+    lecon: creer-librairie
+
+  - id: ang-lib-rupture-semver
+    niveau: senior
+    theme: Publier et versionner
+    type: ouverte
+    question: "Comment décider si un changement dans une librairie de composants doit être publié en version mineure ou en version majeure ?"
+    reponse: |
+      - Le critère est l'impact sur un consommateur qui utilisait l'API publique correctement, pas le comportement interne du composant.
+      - Un input() renommé, un sélecteur modifié, un output() dont le type change, une entrée requise ajoutée sans valeur par défaut : ce sont des ruptures, donc une version majeure.
+      - Ajouter un nouvel input() optionnel, un nouveau composant, sans toucher à l'existant : compatible, donc une version mineure.
+      - En cas de doute sur l'impact réel (par exemple un changement de structure du DOM généré, potentiellement ciblé par du CSS externe), traiter le changement comme une rupture plutôt que l'inverse.
+    explication: "Une bonne réponse distingue explicitement « le composant marche toujours pareil en interne » de « l'API publique reste compatible » — ce sont deux questions différentes, et seule la seconde compte pour SemVer."
+    lecon: publier-versionner
+
+  - id: ang-lib-ng-update-migration
+    niveau: senior
+    theme: Publier et versionner
+    type: qcm
+    question: "Une librairie interne d'entreprise fournit un schematic ng-update pour sa version 4.0.0, qui introduit une rupture (renommage d'un input). Quel est l'intérêt de fournir cette migration plutôt que de se contenter d'une entrée dans le changelog ?"
+    choix:
+      - "La migration peut réécrire automatiquement le code des applications consommatrices (par exemple les templates concernés), rendant la mise à jour majeure beaucoup moins coûteuse pour chaque équipe consommatrice que de lire le changelog et corriger manuellement chaque usage"
+      - "ng-update est obligatoire : sans lui, npm refuse de publier une version majeure"
+      - "Un schematic ng-update remplace le besoin de suivre le versionnement sémantique"
+      - "ng-update ne fonctionne que pour les librairies publiées sur le registre public npm, jamais sur un registre privé d'entreprise"
+    reponse: 0
+    explication: "Sur une librairie interne consommée par plusieurs équipes, le coût d'une rupture se multiplie par le nombre d'applications consommatrices. Une migration outillée transforme une tâche manuelle répétée dans chaque équipe en une commande automatisée, ce qui rend les ruptures nécessaires beaucoup plus acceptables à faire accepter en interne."
+    lecon: publier-versionner
+
+  - id: ang-lib-monorepo-vs-polyrepo
+    niveau: senior
+    theme: Organiser un monorepo
+    type: ouverte
+    question: "Une entreprise a une application principale et plusieurs librairies de composants internes. Dans quel cas un monorepo est-il préférable à des dépôts séparés avec publication npm sur un registre interne, et quel est le compromis principal ?"
+    reponse: |
+      - Le monorepo facilite les changements coordonnés : modifier une librairie et son usage dans l'application se fait dans le même commit, testé ensemble avant intégration.
+      - Il rend une rupture d'API immédiatement visible (le consommateur est dans le même dépôt, souvent la même CI), au lieu d'être découverte plus tard lors d'une mise à jour de version publiée.
+      - Le compromis principal : le monorepo demande un outillage capable de ne construire/tester que ce qui a réellement changé (graphe de dépendances, cache), sinon la CI ralentit avec la taille du dépôt indépendamment de l'ampleur du changement.
+      - Des dépôts séparés isolent mieux chaque équipe et son cycle de publication, au prix d'une synchronisation de versions explicite entre dépôts.
+    explication: "Une bonne réponse senior évite de présenter un choix comme universellement meilleur : elle nomme le compromis réel (coordination facile contre isolation d'équipe) plutôt qu'une liste d'avantages à sens unique."
+    lecon: monorepo

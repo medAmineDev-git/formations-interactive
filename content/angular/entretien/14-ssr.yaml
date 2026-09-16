@@ -1,0 +1,152 @@
+# Questions d'entretien — SSR, hydratation et SEO
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ang-ssr-csr-ssr-ssg
+    niveau: confirme
+    theme: Rendu côté serveur
+    type: ouverte
+    question: "Quelle est la différence entre CSR, SSR et SSG ? Comment choisiriez-vous entre les trois pour un catalogue de boutique en ligne ?"
+    reponse: |
+      - **CSR** : le navigateur télécharge un HTML quasiment vide, puis exécute le JavaScript pour générer tout le contenu. Rien n'est visible avant la fin du téléchargement/exécution du bundle.
+      - **SSR** : un serveur Node exécute Angular **à chaque requête** et renvoie un HTML déjà rempli. Premier affichage plus rapide, données à jour, mais un serveur Node à héberger et un coût CPU par requête.
+      - **SSG (prérendu)** : le rendu se fait **une seule fois, au build**, pour des routes connues à l'avance. Aucun coût à l'exécution, mais des données figées jusqu'au prochain déploiement.
+      - Pour un catalogue : les pages peu volatiles (accueil, catégories) se prêtent au prérendu ; les fiches produits avec un stock ou un prix qui varie en continu doivent rester en SSR pour ne pas afficher une donnée obsolète, tout en restant indexables ; les pages privées (compte utilisateur) n'ont aucun intérêt SEO et peuvent rester en CSR.
+    explication: "Un bon candidat justifie le choix par la volatilité réelle des données et l'enjeu SEO de chaque page, pas par un choix global appliqué à toute l'application."
+    lecon: ssr-bases
+
+  - id: ang-ssr-cout-infra
+    niveau: senior
+    theme: Rendu côté serveur
+    type: qcm
+    question: "Quel est le principal compromis à assumer en passant une application Angular du CSR pur au SSR ?"
+    choix:
+      - "Le SSR nécessite désormais d'héberger et de faire monter en charge un serveur Node, avec un coût CPU et une latence propres au rendu serveur à chaque requête"
+      - "Le SSR supprime tout besoin de JavaScript côté client"
+      - "Le SSR interdit l'usage des signaux et du mode zoneless"
+      - "Le SSR remplace obligatoirement HttpClient par un client HTTP dédié au serveur"
+    reponse: 0
+    explication: "Le CSR se contente de fichiers statiques servis par un CDN, sans coût de calcul à l'exécution. Le SSR exige un serveur Node applicatif qui exécute Angular à chaque requête : c'est une infrastructure à déployer, surveiller et faire monter en charge, avec un coût CPU et un temps de réponse à mesurer — pas un simple interrupteur sans conséquence."
+    lecon: ssr-bases
+
+  - id: ang-ssr-platform-id
+    niveau: junior
+    theme: Rendu côté serveur
+    type: qcm
+    question: "Un service accède directement à `localStorage` dans son constructeur, sans protection. Que se passe-t-il en environnement SSR ?"
+    code: |
+      @Injectable({ providedIn: 'root' })
+      export class PreferencesService {
+        theme = localStorage.getItem('theme');
+      }
+    choix:
+      - "Le rendu serveur échoue, `localStorage` n'existant pas dans l'environnement Node qui exécute le rendu"
+      - "Angular fournit automatiquement une implémentation vide de `localStorage` côté serveur"
+      - "Le code fonctionne normalement, Node exposant les mêmes API que le navigateur"
+      - "Angular ignore ce champ côté serveur et le laisse `undefined` sans erreur"
+    reponse: 0
+    explication: "Le rendu SSR s'exécute dans un processus Node, où les API du navigateur n'existent pas. Ce genre d'accès direct doit être protégé avec `isPlatformBrowser(inject(PLATFORM_ID))`, ou déplacé dans un hook exécuté uniquement côté client comme `afterNextRender()`."
+    lecon: ssr-bases
+
+  - id: ang-ssr-hydratation-role
+    niveau: confirme
+    theme: Hydratation
+    type: ouverte
+    question: "À quoi sert l'hydratation, et que se passerait-il sans elle sur une application rendue en SSR ?"
+    reponse: |
+      - Sans hydratation, Angular démarre côté client exactement comme en CSR : il **détruit** le DOM produit par le SSR et le **recrée** entièrement, ce qui annule une partie du bénéfice du SSR (travail dupliqué, flash visuel possible).
+      - L'hydratation **réutilise** le DOM existant : elle le parcourt, l'associe aux instances de composants correspondantes, et y rattache les gestionnaires d'événements — sans reconstruire les nœuds DOM eux-mêmes.
+      - Elle s'active avec `provideClientHydration()`, souvent combinée à `withEventReplay()` pour ne pas perdre les interactions survenues avant la fin de l'hydratation.
+    lecon: hydratation
+
+  - id: ang-ssr-erreur-hydratation
+    niveau: senior
+    theme: Hydratation
+    type: qcm
+    question: "Ce composant provoque une erreur d'hydratation (NG0500, Hydration Node Mismatch). Pourquoi, et comment corriger ?"
+    code: |
+      @Component({
+        selector: 'app-widget-graphique',
+        template: `<div #zone></div>`,
+      })
+      export class WidgetGraphique implements AfterViewInit {
+        constructor(private el: ElementRef) {}
+        ngAfterViewInit() {
+          this.el.nativeElement.querySelector('div')!.innerHTML = '<canvas></canvas>';
+        }
+      }
+    choix:
+      - "`innerHTML` modifie le DOM en dehors du système de rendu d'Angular ; le serveur ne connaît pas cette structure, d'où une divergence détectée à l'hydratation. Corriger en exprimant ce contenu dans le template, ou en isolant ce composant avec `ngSkipHydration` en dernier recours"
+      - "`AfterViewInit` n'existe pas côté serveur, il faut le remplacer par `ngOnInit`"
+      - "`ElementRef` est interdit en SSR, il faut utiliser `Renderer2` exclusivement"
+      - "Le sélecteur du composant contient une erreur de syntaxe"
+    reponse: 0
+    explication: "La manipulation directe du DOM (`innerHTML`, `appendChild`…) est la cause la plus fréquente d'erreurs d'hydratation : elle produit un DOM que le serveur ne connaissait pas. La correction propre reste d'exprimer ce contenu via le template Angular ; `ngSkipHydration` est un dernier recours qui renonce à l'hydratation pour ce sous-arbre."
+    lecon: hydratation
+
+  - id: ang-ssr-hydratation-incrementale
+    niveau: senior
+    theme: Hydratation incrémentale
+    type: ouverte
+    question: "Qu'apporte l'hydratation incrémentale par rapport à l'hydratation complète, et sur quel type de page en verriez-vous le bénéfice ?"
+    reponse: |
+      - L'hydratation complète attache tous les gestionnaires d'événements de toute la page dès le démarrage, y compris pour des blocs secondaires que l'utilisateur ne verra peut-être jamais — un travail JavaScript qui retarde le moment où l'essentiel de la page devient réellement interactif.
+      - L'hydratation incrémentale (`provideClientHydration(withIncrementalHydration())`) répartit ce travail bloc par bloc, via `@defer (... ; hydrate on ...)` : chaque bloc devient interactif selon son propre déclencheur (`interaction`, `hover`, `viewport`, `idle`, `timer`, ou jamais avec `hydrate never`).
+      - Le contenu SSR du bloc reste affiché immédiatement (visible, indexable), même non hydraté : seule l'interactivité est différée.
+      - Bénéfice concret sur une page riche en blocs secondaires (fiche produit avec avis clients, recommandations, widget de chat) : le temps avant interactivité (TTI) de l'essentiel de la page s'améliore, à vérifier avec le profileur Angular DevTools et Lighthouse plutôt qu'à supposer.
+    explication: "Un bon candidat insiste sur la distinction entre « affiché » (dès le SSR) et « interactif » (au déclencheur d'hydratation), et sait citer au moins deux déclencheurs disponibles."
+    lecon: hydratation-incrementale
+
+  - id: ang-ssr-defer-hydrate-syntaxe
+    niveau: confirme
+    theme: Hydratation incrémentale
+    type: qcm
+    question: "Comment active-t-on l'hydratation incrémentale, et quelle syntaxe combine un déclencheur de chargement `@defer` classique avec un déclencheur d'hydratation ?"
+    choix:
+      - "`provideClientHydration(withIncrementalHydration())` côté providers, puis `@defer (on viewport; hydrate on interaction) { ... }` dans le template"
+      - "`provideRouter(routes, withIncrementalHydration())`, puis `@defer (hydrate; on interaction) { ... }`"
+      - "Aucune configuration nécessaire : tout `@defer` existant devient automatiquement incrémental en SSR"
+      - "`provideServerRendering(withIncrementalHydration())`, puis `@Component({ hydrate: 'interaction' })`"
+    reponse: 0
+    explication: "L'activation se fait via `withIncrementalHydration()` ajouté à `provideClientHydration()`. Dans le template, le déclencheur d'hydratation s'ajoute après le déclencheur `@defer` classique, séparé par un point-virgule : `@defer (on viewport; hydrate on interaction) { ... }`."
+    lecon: hydratation-incrementale
+
+  - id: ang-ssr-choisir-rendu-page
+    niveau: confirme
+    theme: Pré-rendu et SEO
+    type: ouverte
+    question: "Comment choisiriez-vous le mode de rendu (`Prerender`, `Server`, `Client`) pour chaque route d'un site boutique : page d'accueil, fiche produit, tableau de bord compte client ?"
+    reponse: |
+      - **Page d'accueil** : contenu peu volatile entre deux déploiements et fort enjeu SEO → `RenderMode.Prerender` (SSG), rapide et sans coût serveur à l'exécution.
+      - **Fiche produit** : le stock et le prix changent en continu, mais la page doit rester indexable avec des données à jour → `RenderMode.Server` (SSR), régénéré à chaque requête.
+      - **Tableau de bord compte client** : contenu privé, propre à chaque utilisateur connecté, sans aucun enjeu SEO → `RenderMode.Client` (CSR), pas besoin de payer le coût d'un rendu serveur pour du contenu que les robots ne doivent de toute façon pas indexer.
+      - Le choix se fait route par route dans `app.routes.server.ts`, pas globalement pour toute l'application.
+    lecon: prerendu-seo
+
+  - id: ang-ssr-404-status
+    niveau: senior
+    theme: Pré-rendu et SEO
+    type: qcm
+    question: "Une route catch-all (`**`) affiche une page « produit introuvable ». Sans configuration particulière dans `app.routes.server.ts`, quel problème SEO cela pose-t-il ?"
+    choix:
+      - "La page est renvoyée avec un code HTTP 200 par défaut : un robot d'indexation peut alors l'indexer comme une page normale, au lieu de la traiter comme une erreur"
+      - "Aucun problème : Angular détecte automatiquement qu'il s'agit d'une page d'erreur et renvoie un 404"
+      - "La route catch-all empêche toute indexation du site, y compris des pages valides"
+      - "Le problème ne concerne que le CSR, jamais le SSR"
+    reponse: 0
+    explication: "`ServerRoute` accepte une propriété `status` : sans `status: 404` explicite sur la route catch-all, une page rendue en SSR renvoie un code de succès par défaut, même pour un contenu qui signale une erreur — ce qui peut amener un moteur de recherche à indexer une page qui ne devrait pas l'être."
+    lecon: prerendu-seo
+
+  - id: ang-ssr-verifier-rendu-reel
+    niveau: senior
+    theme: Pré-rendu et SEO
+    type: ouverte
+    question: "Comment vérifier concrètement ce qu'un robot d'indexation reçoit réellement pour une page donnée, au-delà de ce qui s'affiche dans un navigateur ?"
+    reponse: |
+      - Ce qui s'affiche dans un navigateur après hydratation ne dit rien du HTML brut réellement renvoyé par le serveur : le navigateur a déjà exécuté le JavaScript, ce qu'un robot ne fait pas forcément de la même façon.
+      - Inspecter directement la réponse HTTP brute (par exemple avec `curl` sur l'URL de la page) permet de voir le HTML tel qu'il arrive avant toute exécution JavaScript : le titre, la description et le contenu principal doivent déjà y figurer pour une page en SSR ou prérendue.
+      - Un outil d'inspection d'URL d'un moteur de recherche montre en complément comment ce moteur en particulier interprète effectivement la page.
+    explication: "Un bon candidat mentionne spontanément qu'un rendu correct dans le navigateur (après hydratation) ne garantit rien sur ce qu'un robot reçoit réellement, et sait citer une méthode de vérification concrète (curl, outil d'inspection d'URL)."
+    lecon: prerendu-seo

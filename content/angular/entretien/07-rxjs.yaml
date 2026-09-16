@@ -1,0 +1,97 @@
+# Questions d'entretien — RxJS avec Angular
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: ang-rx-observable-froid
+    niveau: junior
+    theme: Les bases des observables
+    type: ouverte
+    question: "Qu'est-ce qu'un observable \"froid\", et pourquoi appeler deux fois subscribe() sur this.http.get(...) déclenche-t-il deux requêtes HTTP ?"
+    reponse: |
+      - Un observable est **paresseux** : il ne s'exécute pas tant que personne ne s'y abonne.
+      - Un observable **froid** exécute son producteur de façon **indépendante pour chaque abonné** : il n'y a pas de partage d'exécution.
+      - `http.get(...)` renvoie un observable froid : chaque `subscribe()` relance la requête depuis zéro, donc deux `subscribe()` déclenchent deux requêtes distinctes vers le serveur.
+      - Pour partager une seule exécution entre plusieurs abonnés, il faut un Subject ou un opérateur de multidiffusion comme `shareReplay()`.
+    explication: "Bonus en entretien : relier ça au piège classique d'un composant qui s'abonne plusieurs fois par erreur au même flux HTTP, pensant récupérer la même donnée sans frais supplémentaire."
+    lecon: observables-bases
+
+  # ---------- Confirmé ----------
+  - id: ang-rx-switchmap-vs-mergemap
+    niveau: confirme
+    theme: Opérateurs d'aplatissement
+    type: qcm
+    question: "Une recherche produit utilise mergeMap() au lieu de switchMap(). L'utilisateur tape \"c\" puis très vite \"ca\". Quel bug peut apparaître ?"
+    code: |
+      motCle$.pipe(
+        mergeMap(terme => this.http.get<Produit[]>(`/api/produits?q=${terme}`)),
+      ).subscribe(resultats => this.resultats.set(resultats));
+    choix:
+      - "Aucun risque : mergeMap() et switchMap() se comportent toujours de façon identique pour une recherche"
+      - "Si la requête pour \"c\" répond après celle pour \"ca\" (réseau plus lent), mergeMap() ne l'annule pas : les résultats affichés finissent par être ceux de \"c\", obsolètes par rapport à ce que l'utilisateur a tapé en dernier"
+      - "mergeMap() ne peut tout simplement pas être utilisé avec un appel HTTP"
+      - "mergeMap() met les requêtes en file et ne lance \"ca\" qu'après la réponse de \"c\""
+    reponse: 1
+    explication: "mergeMap() lance tous les appels internes en parallèle sans rien annuler ni garantir d'ordre sur les réponses. Si la réponse de la première frappe arrive après celle de la deuxième, elle écrase le résultat le plus récent avec un résultat obsolète. switchMap() évite ce bug en annulant systématiquement l'appel précédent dès qu'une nouvelle valeur arrive : seul le dernier résultat pertinent peut s'afficher."
+    lecon: operateurs
+
+  - id: ang-rx-exhaustmap-double-clic
+    niveau: confirme
+    theme: Opérateurs d'aplatissement
+    type: ouverte
+    question: "Un bouton \"Enregistrer\" envoie une commande au serveur. Quel opérateur d'aplatissement choisiriez-vous pour empêcher qu'un double-clic accidentel envoie deux requêtes, et pourquoi pas switchMap() ?"
+    reponse: |
+      - `exhaustMap()` : il **ignore** toute nouvelle valeur (un deuxième clic) tant que l'observable interne en cours (la requête d'enregistrement) n'est pas terminé.
+      - `switchMap()` serait dangereux ici : il **annulerait** la première requête HTTP au profit de la seconde, sans garantie que l'annulation empêche réellement l'effet côté serveur déjà déclenché — risque de comportement incohérent, pas seulement de double envoi.
+      - `mergeMap()` laisserait les deux requêtes partir en parallèle : exactement le bug qu'on cherche à éviter.
+      - `concatMap()` mettrait les deux clics en file et enverrait quand même les deux requêtes, l'une après l'autre : pas non plus ce qu'on veut pour un simple garde-fou anti double-clic.
+    explication: "Un bon candidat relie ce choix au fait qu'annuler une requête HTTP côté client (switchMap) n'annule pas forcément le traitement déjà lancé côté serveur — l'argument technique qui distingue exhaustMap() de switchMap() dans ce cas précis."
+    lecon: operateurs
+
+  - id: ang-rx-behaviorsubject-vs-signal
+    niveau: confirme
+    theme: Subjects et signaux
+    type: ouverte
+    question: "Dans un service Angular 21, dans quel cas choisiriez-vous encore un BehaviorSubject plutôt qu'un signal pour représenter un état partagé ?"
+    reponse: |
+      - Pour un **état simple**, lu de façon synchrone dans des templates (`computed()`, `effect()` compris), un `signal()` est aujourd'hui plus direct : pas de `| async`, pas de question de valeur initiale à gérer manuellement.
+      - Un `BehaviorSubject` reste pertinent quand l'état doit être **composé avec des opérateurs RxJS** (combiné à un flux d'événements, débouncé, combiné via `combineLatest`/`forkJoin` avec d'autres observables) ou consommé par du code qui travaille déjà dans l'écosystème RxJS.
+      - Dans les deux cas, la bonne pratique reste d'exposer une vue en lecture seule à l'extérieur du service : `asObservable()` pour un Subject, `asReadonly()` (ou simplement ne pas exposer le `WritableSignal`) pour un signal.
+      - Passer de l'un à l'autre reste possible via `toSignal()` / `toObservable()` sans dupliquer la source de vérité.
+    explication: "Un bon candidat évite le \"tout signal\" ou le \"tout RxJS\" dogmatique et argumente selon le besoin réel : état simple vs flux à composer."
+    lecon: subjects
+
+  - id: ang-rx-tosignal-requiresync
+    niveau: confirme
+    theme: Passerelles RxJS / signaux
+    type: qcm
+    question: "Que se passe-t-il avec ce code ?"
+    code: |
+      produit = toSignal(
+        this.http.get<Produit>('/api/produits/1'),
+        { requireSync: true },
+      );
+    choix:
+      - "Rien de particulier : requireSync: true est une simple optimisation de performance, sans effet sur le comportement"
+      - "requireSync: true suppose une émission synchrone à l'abonnement, ce qu'une requête HTTP (toujours asynchrone) ne peut pas garantir : ce code est incorrect et peut provoquer une erreur au moment de la création du signal"
+      - "Le code force la requête HTTP à devenir synchrone, bloquant le thread principal jusqu'à la réponse"
+      - "requireSync: true remplace initialValue et fonctionne avec n'importe quel type d'observable, y compris HTTP"
+    reponse: 1
+    explication: "requireSync: true affirme au compilateur (et à l'exécution) que l'observable émettra immédiatement une valeur dès l'abonnement — vrai pour un flux dérivé d'un BehaviorSubject, jamais pour un appel HTTP qui répond toujours de façon asynchrone. Utiliser requireSync sur un tel flux revient à faire une promesse que l'observable ne peut pas tenir."
+    lecon: rxjs-signaux
+
+  # ---------- Senior ----------
+  - id: ang-rx-sharereplay-fuite
+    niveau: senior
+    theme: Subjects et partage de flux
+    type: ouverte
+    question: "Quel est le piège de shareReplay() sur un flux qui ne se termine jamais, et comment l'éviter ?"
+    reponse: |
+      - Par défaut (sans configurer `refCount`), `shareReplay()` garde l'abonnement au flux **source** actif même quand **plus aucun abonné** n'écoute le flux partagé.
+      - Sur un observable qui se termine de lui-même (un `http.get()` classique), l'impact est limité. Sur un flux qui ne se termine jamais (WebSocket, `interval`, flux d'événements), ça peut retenir une connexion ou une ressource **indéfiniment**, même après que tous les composants qui l'utilisaient ont été détruits — une fuite mémoire discrète, difficile à repérer sans profiler.
+      - La correction : utiliser la forme `shareReplay({ bufferSize, refCount: true })`. Avec `refCount: true`, l'abonnement au flux source est coupé automatiquement dès que le dernier abonné se désabonne, et repart si un nouvel abonné survient plus tard.
+      - En entretien, relier ça au principe général : tout ce qui multidiffuse un flux long-vivant doit avoir une stratégie explicite de fin de vie, pas seulement de partage.
+    explication: "Question qui distingue un candidat qui a lu la documentation d'un candidat qui a réellement été confronté au bug en production (connexion WebSocket qui ne se referme jamais, cache jamais invalidé)."
+    lecon: subjects

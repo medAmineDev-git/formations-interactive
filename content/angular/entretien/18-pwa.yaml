@@ -1,0 +1,134 @@
+# Questions d'entretien — PWA et mode hors-ligne
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ang-pwa-role-service-worker
+    niveau: confirme
+    theme: Service worker
+    type: ouverte
+    question: "Qu'est-ce qu'un service worker, et que génère concrètement `ng add @angular/pwa` dans un projet Angular ?"
+    reponse: |
+      - Un service worker est un script exécuté **à part** de la page, capable d'intercepter toutes ses requêtes réseau et de continuer à tourner indépendamment d'un onglet ouvert. C'est ce qui permet le cache et le fonctionnement hors-ligne. Il exige HTTPS, sauf sur `localhost`.
+      - `ng add @angular/pwa` ajoute la dépendance `@angular/service-worker`, enregistre le service worker via `provideServiceWorker('ngsw-worker.js', { enabled: !isDevMode(), ... })` dans les providers, modifie `index.html` (lien vers `manifest.webmanifest`, meta `theme-color`), installe des icônes par défaut, et crée un `ngsw-config.json` de base.
+      - `enabled: !isDevMode()` garantit qu'il n'est jamais actif en développement.
+    explication: "Un bon candidat sait citer précisément ce que génère la commande, sans se contenter de « ça ajoute le service worker »."
+    lecon: service-worker
+
+  - id: ang-pwa-assetgroups-datagroups
+    niveau: confirme
+    theme: Service worker
+    type: qcm
+    question: "Quelle est la différence entre `assetGroups` et `dataGroups` dans `ngsw-config.json` ?"
+    choix:
+      - "`assetGroups` couvre les fichiers du build (JS, CSS, images) avec `installMode`/`updateMode` ; `dataGroups` couvre les appels d'API avec une stratégie `performance`/`freshness` et des durées de vie (`maxAge`, `timeout`)"
+      - "`assetGroups` et `dataGroups` sont deux noms différents pour la même chose, interchangeables"
+      - "`dataGroups` sert uniquement à désactiver le cache d'une route"
+      - "`assetGroups` ne s'applique qu'aux images, `dataGroups` à tout le reste"
+    reponse: 0
+    explication: "Un fichier de build est versionné par un hash de contenu (donc `prefetch`/`lazy` suffisent à décider quand le télécharger) ; une réponse d'API n'a pas cette garantie, d'où une stratégie explicite (`performance` : cache d'abord, `freshness` : réseau d'abord) et des durées (`maxAge`, `maxSize`, `timeout`)."
+    lecon: service-worker
+
+  - id: ang-pwa-swupdate-cycle
+    niveau: senior
+    theme: Mises à jour
+    type: ouverte
+    question: "Comment `SwUpdate` gère-t-il le cycle de mise à jour d'une PWA, et pourquoi ne faut-il pas se contenter d'appeler `activateUpdate()` sans rien d'autre ?"
+    reponse: |
+      - `versionUpdates` est un `Observable` qui émet des événements typés (`VERSION_DETECTED`, `VERSION_READY`, `VERSION_INSTALLATION_FAILED`…) au fil du téléchargement d'une nouvelle version en tâche de fond.
+      - `checkForUpdate()` force une vérification immédiate (`Promise<boolean>`) ; `activateUpdate()` bascule la version active mais **ne recharge pas la page**.
+      - Sans rechargement explicite (`document.location.reload()`) après `activateUpdate()`, l'onglet ouvert continue d'exécuter l'ancien JavaScript en mémoire, et un chargement différé ultérieur (route lazy, `@defer`) peut récupérer un chunk de la nouvelle version incompatible avec l'app shell encore ancienne — un mélange de versions.
+      - La bonne pratique : filtrer `versionUpdates` sur `VERSION_READY`, proposer la mise à jour à l'utilisateur, puis recharger seulement après confirmation (ou activation).
+    explication: "Le point clé attendu : `activateUpdate()` seul ne suffit pas, le rechargement est une étape distincte et volontaire."
+    lecon: mises-a-jour
+
+  - id: ang-pwa-unrecoverable
+    niveau: senior
+    theme: Mises à jour
+    type: qcm
+    question: "Que signifie un événement `unrecoverable` émis par `SwUpdate`, et quelle est la seule réponse possible ?"
+    choix:
+      - "Le service worker a rencontré une erreur mineure qui se corrige seule au prochain cycle, aucune action requise"
+      - "Le cache du service worker est devenu incohérent avec ce que l'app shell attend (typiquement une ressource évincée par le navigateur) ; la seule solution est de prévenir l'utilisateur puis de recharger complètement la page"
+      - "Il faut immédiatement supprimer `ngsw-config.json` du serveur pour corriger le problème chez l'utilisateur concerné"
+      - "Cet événement ne peut être émis qu'en développement, jamais en production"
+    reponse: 1
+    explication: "`unrecoverable` (avec un champ `reason`) signale un état dont le service worker ne peut pas se sortir seul en JavaScript — un rechargement complet de la page est la seule issue. Modifier le déploiement serveur ne répare rien pour l'utilisateur déjà bloqué dans cet état."
+    lecon: mises-a-jour
+
+  - id: ang-pwa-desactiver-sw
+    niveau: senior
+    theme: Mises à jour
+    type: ouverte
+    question: "Vous retirez `provideServiceWorker(...)` du code et redéployez l'application. Pourquoi cela ne suffit-il pas à faire disparaître le service worker chez les utilisateurs qui l'ont déjà installé, et que faire à la place ?"
+    reponse: |
+      - Un service worker déjà enregistré dans le navigateur d'un utilisateur continue de tourner indépendamment du code source actuel : retirer `provideServiceWorker` du projet ne le désinstalle chez personne, il continue de servir l'ancienne application depuis son cache.
+      - La méthode documentée consiste à renommer ou supprimer le fichier `ngsw.json` généré : à sa prochaine vérification, le service worker reçoit un `404`, comprend qu'il doit s'auto-détruire, vide ses caches et se désenregistre.
+      - En dernier recours (changement d'URL du script du service worker), un `safety-worker.js` fourni par `@angular/service-worker` peut être servi explicitement à l'ancienne URL, le temps que tous les clients existants l'aient récupéré et se soient désinscrits.
+    explication: "Un bon candidat distingue clairement « retirer le code source » de « faire réagir un service worker déjà installé chez un utilisateur » — deux choses différentes."
+    lecon: mises-a-jour
+
+  - id: ang-pwa-ce-qui-est-possible
+    niveau: confirme
+    theme: Hors-ligne
+    type: ouverte
+    question: "Un utilisateur ouvre l'URL d'une fiche produit qu'il n'a jamais consultée, réseau coupé. Que se passe-t-il, et pourquoi ?"
+    reponse: |
+      - Le hors-ligne d'une PWA n'est pas une génération automatique de contenu : seules les ressources **déjà demandées** au moins une fois en ligne, et couvertes par un `assetGroup`/`dataGroup`, restent disponibles sans réseau.
+      - Une fiche produit jamais visitée n'a ni sa réponse d'API en cache (`dataGroup`), ni forcément toutes les ressources associées : la page échoue à charger la donnée.
+      - La bonne pratique est de prévoir un état d'erreur clair côté application (« ce contenu n'est pas disponible hors-ligne ») plutôt qu'un écran vide ou une erreur technique brute.
+    explication: "Corrige une idée fausse fréquente : une PWA ne rend pas l'intégralité du site disponible hors-ligne par défaut, seulement ce qui a transité par le cache."
+    lecon: hors-ligne
+
+  - id: ang-pwa-stockage-local
+    niveau: confirme
+    theme: Hors-ligne
+    type: qcm
+    question: "Pour stocker le catalogue complet d'une boutique (plusieurs centaines de fiches produit) consultable hors-ligne, quel mécanisme de stockage navigateur choisir ?"
+    choix:
+      - "`localStorage`, car il est disponible dans tous les navigateurs modernes"
+      - "IndexedDB, une base orientée objets, asynchrone, avec une capacité bien supérieure à `localStorage` et adaptée à un volume de données structurées"
+      - "Les cookies, car ils sont automatiquement envoyés avec chaque requête"
+      - "Le cache HTTP du navigateur uniquement, sans stockage applicatif dédié"
+    reponse: 1
+    explication: "`localStorage` est synchrone, limité à quelques mégaoctets et ne stocke que des chaînes : il convient à de petites préférences, pas à un catalogue volumineux. IndexedDB est conçu pour ce cas : asynchrone (ne bloque pas le thread principal), capacité nettement supérieure, données structurées."
+    lecon: hors-ligne
+
+  - id: ang-pwa-file-actions-conflits
+    niveau: senior
+    theme: Hors-ligne
+    type: ouverte
+    question: "Comment concevoir une file d'actions à synchroniser au retour du réseau (ex. ajout au panier hors-ligne), et quel piège faut-il anticiper ?"
+    reponse: |
+      - Enregistrer localement (IndexedDB ou `localStorage` selon le volume) chaque action effectuée hors-ligne, avec assez de contexte pour la rejouer plus tard (identifiant produit, quantité, horodatage).
+      - Au retour du réseau (`window.addEventListener('online', ...)`), rejouer les actions en attente une par une vers le serveur, et ne retirer de la file que celles qui réussissent réellement.
+      - Le piège principal : un **conflit**. L'état côté serveur a pu changer pendant la coupure (produit retiré, stock épuisé, prix modifié). Ignorer silencieusement l'échec, ou faire comme si l'action avait réussi, trompe l'utilisateur — il faut détecter l'échec, l'expliquer clairement, et lui laisser une décision (retirer l'article, continuer autrement).
+    explication: "Le point attendu en senior : ne pas s'arrêter au mécanisme de rejeu, anticiper explicitement la gestion des conflits."
+    lecon: hors-ligne
+
+  - id: ang-pwa-manifest-installation
+    niveau: confirme
+    theme: Installation
+    type: qcm
+    question: "Quelle propriété de `manifest.webmanifest` détermine si l'application s'ouvre sans la barre d'adresse du navigateur, comme une application autonome ?"
+    choix:
+      - "`start_url`"
+      - "`display`, avec la valeur `\"standalone\"`"
+      - "`theme_color`"
+      - "`short_name`"
+    reponse: 1
+    explication: "`display: \"standalone\"` fait apparaître l'application dans sa propre fenêtre, sans barre d'adresse ni contrôles de navigateur classiques. `start_url` définit seulement la page de démarrage, `theme_color` colore l'interface système (barre de titre, barre de statut), `short_name` est le nom affiché sous l'icône."
+    lecon: hors-ligne
+
+  - id: ang-pwa-ios-limites
+    niveau: senior
+    theme: Installation
+    type: ouverte
+    question: "Quelles différences notables faut-il anticiper entre Chrome/Android et Safari/iOS pour l'installation et le stockage hors-ligne d'une PWA ?"
+    reponse: |
+      - Pas d'événement `beforeinstallprompt` sur Safari/iOS : impossible de proposer un bouton d'installation personnalisé déclenché par l'application. L'utilisateur doit installer manuellement via le menu de partage (« Sur l'écran d'accueil »).
+      - Le stockage (IndexedDB, `localStorage`) peut être soumis à des politiques de limitation de suivi plus agressives sous Safari, qui peuvent évincer les données après une période d'inactivité — ne pas considérer les données hors-ligne comme définitivement acquises sur cette plateforme.
+      - Il faut donc concevoir l'expérience d'installation et de persistance en tenant compte de ces différences, plutôt que de supposer un comportement uniforme entre plateformes.
+    explication: "Un bon candidat sait citer au moins l'absence de `beforeinstallprompt` sur iOS ; la nuance sur la persistance du stockage distingue un profil senior."
+    lecon: hors-ligne

@@ -1,0 +1,81 @@
+# Questions d'entretien Angular — chapitre « Les formulaires »
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ang-form-reactif-vs-template
+    niveau: junior
+    theme: Choisir son approche
+    type: ouverte
+    question: "Quelle différence entre un formulaire réactif et un formulaire template dans Angular, et quand choisir l'un plutôt que l'autre ?"
+    reponse: |
+      - **Formulaire réactif** (`ReactiveFormsModule`) : le formulaire (`FormGroup`/`FormControl`) est déclaré en TypeScript, le template ne fait que s'y lier (`[formGroup]`, `formControlName`). La validation est composée de fonctions (`Validators.*`).
+      - **Formulaire template** (`FormsModule`) : le formulaire vit dans le HTML, via `[(ngModel)]` et des attributs de validation (`required`, `minlength`…). Angular construit lui-même l'objet de formulaire en coulisses.
+      - **Choix** : réactif pour un formulaire avec de la validation riche, une structure dynamique (`FormArray`) ou qui doit être testé facilement en TypeScript. Template pour un petit formulaire simple et statique.
+    explication: "Bonus en entretien : préciser que les deux approches ne doivent pas être mélangées sur le même formulaire, et que le formulaire réactif est presque toujours le choix par défaut dans une application de taille réelle."
+    lecon: formulaires-template
+
+  - id: ang-form-getrawvalue
+    niveau: junior
+    theme: Formulaires réactifs
+    type: qcm
+    question: "Un `FormGroup` contient un champ `codePromo` désactivé (`disabled: true`). Comment récupérer sa valeur malgré tout ?"
+    choix:
+      - "`form.value.codePromo`, `value` inclut toujours tous les champs"
+      - "`form.getRawValue()`, qui inclut les contrôles désactivés"
+      - "`form.controls.codePromo.enable()` avant de lire `value`"
+      - "Ce n'est pas possible, un contrôle désactivé perd sa valeur"
+    reponse: 1
+    explication: "`value` (et `valueChanges`) exclut les contrôles désactivés du résultat. `getRawValue()` renvoie la structure complète, désactivés compris, sans avoir besoin de les réactiver au préalable."
+    lecon: formulaires-reactifs
+
+  - id: ang-form-etats-controle
+    niveau: junior
+    theme: Validation
+    type: ouverte
+    question: "À quoi servent `touched` et `dirty` sur un `FormControl`, et pourquoi ne suffit-il pas de tester `invalid` pour afficher une erreur ?"
+    reponse: |
+      - `dirty` : la valeur a changé depuis la création du contrôle (opposé : `pristine`).
+      - `touched` : le champ a reçu puis perdu le focus au moins une fois (opposé : `untouched`).
+      - `invalid` seul est vrai dès la création si le contrôle est requis et vide : afficher l'erreur sur ce seul critère la montrerait avant même que l'utilisateur ait pu saisir quoi que ce soit.
+      - En pratique, on combine les deux : `control.invalid && control.touched` (ou `dirty`), pour n'afficher l'erreur qu'après une interaction de l'utilisateur.
+    lecon: validation-formulaires
+
+  - id: ang-form-validateur-async
+    niveau: confirme
+    theme: Validation
+    type: ouverte
+    question: "Comment vérifier qu'un e-mail n'est pas déjà utilisé côté serveur, dans un formulaire réactif ? Quelle différence avec un validateur classique ?"
+    reponse: |
+      - On utilise un **validateur asynchrone** : une fonction qui reçoit le contrôle et renvoie un `Observable<ValidationErrors | null>` (ou une `Promise`), passée en `asyncValidators` (3ᵉ paramètre du `FormControl`, ou clé `asyncValidators` de l'objet de configuration).
+      - Différence avec un validateur synchrone : celui-ci renvoie directement `ValidationErrors | null`, sans appel externe, et s'exécute immédiatement à chaque changement de valeur.
+      - Pendant l'appel asynchrone, le contrôle passe à l'état `pending`, utile pour afficher un indicateur de chargement le temps de la réponse.
+    explication: "Bonus en entretien : mentionner qu'Angular attend la fin d'un appel asynchrone en cours avant d'en relancer un nouveau si la valeur change entre-temps."
+    lecon: validation-formulaires
+
+  - id: ang-form-formarray-track
+    niveau: confirme
+    theme: Formulaires dynamiques
+    type: qcm
+    question: "Dans un `@for` qui affiche les lignes d'un `FormArray` (avec possibilité de suppression), pourquoi éviter `track $index` ?"
+    choix:
+      - "`$index` n'existe pas dans un `@for` sur un `FormArray`"
+      - "Après une suppression au milieu du tableau, Angular peut réutiliser l'élément DOM de l'index désormais occupé par une autre ligne, désynchronisant focus ou état visuel"
+      - "`track $index` empêche `FormArray` de recalculer sa validité"
+      - "Ce n'est pas un problème, `$index` est toujours recommandé pour un `FormArray`"
+    reponse: 1
+    explication: "Suivre par position plutôt que par identité fait qu'après une suppression, l'élément DOM d'un index donné n'est pas recréé mais réutilisé pour une autre ligne. Suivre le contrôle lui-même (`track ligne`) ou un identifiant métier stable évite ce problème."
+    lecon: formulaires-dynamiques
+
+  - id: ang-form-signal-forms-statut
+    niveau: confirme
+    theme: Signal Forms
+    type: ouverte
+    question: "Que sont les Signal Forms en Angular 21, et faut-il les utiliser pour un projet de production aujourd'hui ?"
+    reponse: |
+      - Les **Signal Forms** (`@angular/forms/signals`) sont une nouvelle API introduite en Angular 21.0 : le formulaire part d'un `signal()` et `form()` construit la structure de validation autour, avec une directive de template (`[formField]`) pour lier chaque champ.
+      - Elles sont **expérimentales** en v21 : l'équipe Angular les décrit comme une bibliothèque à essayer, pas encore garantie stable. Preuve concrète : la directive de liaison s'appelait `[field]` à la sortie de la v21.0.0 puis a été renommée `[formField]` dès le correctif 21.0.9.
+      - Recommandation officielle : les **formulaires réactifs restent le choix solide** pour un projet existant ou qui a besoin de garanties de stabilité en production. Les Signal Forms sont à surveiller, pas encore à adopter pour livrer.
+    explication: "Bonus en entretien : montrer qu'on sait distinguer une API stable d'une API expérimentale dans l'écosystème Angular, et pourquoi c'est un point d'attention pour une équipe qui doit maintenir du code dans la durée."
+    lecon: formulaires-template

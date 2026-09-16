@@ -1,0 +1,73 @@
+# Questions d'entretien Angular — chapitre « Démarrer avec Angular »
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ang-dem-cli
+    niveau: junior
+    theme: Le CLI Angular
+    type: ouverte
+    question: "Qu'est-ce que le CLI Angular ? Que produit `ng new` ?"
+    reponse: |
+      - Le **CLI Angular** (`ng`) est l'outil officiel en ligne de commande pour créer, développer, tester et construire un projet Angular.
+      - `ng new mon-projet` crée un workspace complet après quelques questions interactives (feuille de style, SSR, tests...).
+      - Le projet généré est **standalone** : pas de `NgModule` racine, `main.ts` appelle `bootstrapApplication` avec le composant racine et une configuration (`app.config.ts`).
+      - Le builder par défaut (`@angular/build:application`) repose sur esbuild pour la construction et Vite pour le serveur de développement (`ng serve`).
+    explication: "Bonus en entretien : mentionner que `angular.json` centralise la configuration de build/serve/test par projet, et que `ng generate` (`ng g`) génère du code respectant les conventions du projet."
+    lecon: cli-projet
+
+  - id: ang-dem-appconfig
+    niveau: junior
+    theme: Le CLI Angular
+    type: qcm
+    question: "Dans un projet Angular 21 généré par le CLI, où déclare-t-on les providers globaux (routeur, client HTTP...) ?"
+    choix:
+      - "Dans `app.config.ts`, via la propriété `providers` de l'`ApplicationConfig`"
+      - "Dans `angular.json`"
+      - "Dans un `AppModule` généré automatiquement"
+      - "Directement dans `index.html`"
+    reponse: 0
+    explication: "`app.config.ts` exporte un `ApplicationConfig` dont `providers` regroupe toute la configuration transverse de l'application. `main.ts` le passe à `bootstrapApplication`. Il n'y a pas d'`AppModule` par défaut dans un projet standalone."
+    lecon: cli-projet
+
+  - id: ang-dem-standalone
+    niveau: junior
+    theme: Le composant
+    type: ouverte
+    question: "Qu'est-ce qu'un composant standalone ? Qu'est-ce que cela change concrètement dans le code ?"
+    reponse: |
+      - Un composant standalone déclare **directement** dans ses métadonnées `@Component` les composants, directives et pipes qu'il utilise dans son template, via la propriété `imports`.
+      - Il n'a pas besoin d'être déclaré dans un `NgModule` : il n'y a pas de `declarations` à tenir à jour.
+      - Depuis Angular 19, un composant est standalone **par défaut** : inutile d'écrire `standalone: true`.
+      - Concrètement : `@Component({ selector: '...', imports: [ProduitCard], templateUrl: '...' })` suffit à rendre `ProduitCard` disponible dans le template de ce composant, et de lui seul.
+    lecon: composant
+
+  - id: ang-dem-binding
+    niveau: junior
+    theme: Templates et liaisons
+    type: qcm
+    question: "Quelle syntaxe utiliser pour désactiver un bouton selon un booléen calculé en TypeScript ?"
+    code: |
+      <button ???="panierVide()">Commander</button>
+    choix:
+      - "`[disabled]`, un property binding"
+      - "`{{ disabled }}`, de l'interpolation"
+      - "`(disabled)`, un event binding"
+      - "`disabled`, sans aucune syntaxe de liaison"
+    reponse: 0
+    explication: "Le property binding `[prop]=\"expression\"` évalue l'expression et l'assigne à la propriété DOM correspondante. L'interpolation `{{ }}` ne fonctionne qu'à l'intérieur d'un texte, pas pour lier une propriété d'élément."
+    lecon: templates-binding
+
+  - id: ang-dem-track
+    niveau: confirme
+    theme: Contrôle de flux
+    type: ouverte
+    question: "Pourquoi `track` est-il obligatoire dans `@for` ? Que se passe-t-il si on choisit un mauvais `track` ?"
+    reponse: |
+      - `track` donne à Angular un **identifiant stable** par élément de la collection, indépendant de sa position. Sans lui, Angular ne pourrait décider en toute sécurité quels nœuds DOM garder, déplacer ou recréer quand la liste change — il devrait tout redessiner à chaque changement.
+      - C'est pour cela que le compilateur **refuse** de compiler un `@for` sans `track`, plutôt que de choisir un comportement par défaut potentiellement trompeur.
+      - Bon choix : un identifiant métier stable, ex. `track produit.id`.
+      - Mauvais choix fréquent : `track $index`. Ça compile, mais dès que la liste est triée, filtrée ou qu'un élément est supprimé, les positions ne correspondent plus aux bons éléments — Angular réutilise le mauvais nœud DOM pour le mauvais élément (état de formulaire ou focus qui « saute » d'une ligne à l'autre).
+    explication: "Point qui distingue un candidat qui a juste lu la syntaxe de quelqu'un qui comprend le mécanisme : savoir expliquer *pourquoi* `$index` est risqué, pas seulement que `track` est obligatoire."
+    lecon: controle-flux

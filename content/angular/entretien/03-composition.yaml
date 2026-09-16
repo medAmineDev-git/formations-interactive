@@ -1,0 +1,66 @@
+questions:
+  - id: ang-comp-input-output
+    niveau: junior
+    theme: Communication entre composants
+    type: ouverte
+    question: "Comment un composant enfant reçoit-il une donnée de son parent, et comment renvoie-t-il une information au parent, avec l'API à base de signaux ?"
+    reponse: |
+      - Parent → enfant : l'enfant déclare une entrée avec `input()` (ou `input.required<T>()` si elle est obligatoire) ; le parent la fournit par liaison `[valeur]="x"`.
+      - Enfant → parent : l'enfant déclare une sortie avec `output<T>()` et émet un événement avec `.emit(valeur)` ; le parent l'écoute avec `(evenement)="handler($event)"`.
+      - Pour une liaison dans les deux sens à la fois, `model()` combine une entrée et une sortie implicite, utilisable avec la syntaxe `[(valeur)]="x"`.
+    explication: "Bien distinguer les trois fonctions et leur sens évite l'erreur classique de vouloir faire du two-way binding avec un simple `output()`."
+    lecon: communication
+
+  - id: ang-comp-model-vs-output
+    niveau: confirme
+    theme: Communication entre composants
+    type: qcm
+    question: "Un composant expose `quantite = model(1);`. Quel événement le parent peut-il écouter pour réagir à chaque changement, sans utiliser `[(quantite)]` ?"
+    choix:
+      - "(quantiteChange)"
+      - "(quantiteChanged)"
+      - "(onQuantiteChange)"
+      - "(changeQuantite)"
+    reponse: 0
+    explication: "`model()` crée automatiquement une sortie nommée `<nom>Change`. `[(quantite)]` est en fait un raccourci de syntaxe pour `[quantite]=\"x\" (quantiteChange)=\"x = $event\"` : les deux formes sont utilisables séparément."
+    lecon: communication
+
+  - id: ang-comp-smart-presentational
+    niveau: confirme
+    theme: Composition et architecture
+    type: ouverte
+    question: "Qu'est-ce qui distingue un composant intelligent d'un composant de présentation, et pourquoi ce découpage facilite-t-il les tests ?"
+    reponse: |
+      - Un composant intelligent (container) connaît les services, l'état, le routeur : il récupère les données et décide de la logique métier.
+      - Un composant de présentation ne connaît que ce qu'on lui donne via `input()`, et notifie ses actions via `output()`, sans dépendance externe.
+      - Un composant de présentation se teste facilement en lui passant des entrées et en vérifiant les événements émis, sans avoir à simuler des services ou du routage.
+    explication: "En entretien, illustrer avec un exemple concret (une carte produit purement d'affichage, une page catalogue qui appelle un service) montre une compréhension pratique du pattern, pas seulement théorique."
+    lecon: communication
+
+  - id: ang-comp-ng-content-select
+    niveau: junior
+    theme: Projection de contenu
+    type: qcm
+    question: "Un composant `Carte` déclare `<ng-content select=\"[titre]\" />` puis `<ng-content />`. Le parent écrit `<app-carte><h2 titre>Titre</h2><p>Texte</p></app-carte>`. Où le `<p>` est-il projeté ?"
+    choix:
+      - "Dans le `<ng-content>` sans `select`, car il ne correspond à aucun sélecteur explicite"
+      - "Il est ignoré, car un seul `<ng-content>` peut recevoir du contenu par appel"
+      - "Dans le `<ng-content select=\"[titre]\" />`, comme le `<h2>`"
+      - "Angular lève une erreur de compilation"
+    reponse: 0
+    explication: "Tout contenu qui ne correspond à aucun `select` explicite est capturé par le `<ng-content>` sans attribut `select`, s'il y en a un dans le template. L'ordre des `<ng-content>` dans le template du composant n'a pas d'incidence sur ce routage."
+    lecon: projection
+
+  - id: ang-comp-pipe-pur
+    niveau: confirme
+    theme: Pipes
+    type: qcm
+    question: "Un pipe pur `filtrerParStock` reçoit un tableau `produits` en entrée. Le composant fait `this.produits.push(nouveauProduit)` sans réaffecter `this.produits`. Le template ne se met pas à jour. Pourquoi, et quelle est la meilleure correction ?"
+    choix:
+      - "Le pipe est cassé ; il faut le supprimer et faire le filtrage dans la classe"
+      - "Un pipe pur compare les références d'entrée : réaffecter le tableau (`this.produits = [...this.produits, nouveauProduit]`) le fait réexécuter, sans dégrader les performances comme le passage en `pure: false`"
+      - "Il faut appeler `ChangeDetectorRef.detectChanges()` après chaque `push`"
+      - "Il faut transformer `filtrerParStock` en directive structurelle"
+    reponse: 1
+    explication: "C'est le piège le plus fréquent avec les pipes purs : la mutation en place ne change pas la référence surveillée par Angular. Rendre le pipe impur (`pure: false`) « corrigerait » aussi le symptôme, mais au prix d'une réexécution à chaque cycle de détection de changements — la réaffectation est la solution la plus performante."
+    lecon: pipes

@@ -1,0 +1,93 @@
+# Questions d'entretien — Internationalisation et accessibilité
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: ang-i18n-attribut-vs-localize
+    niveau: junior
+    theme: Traduire une application
+    type: ouverte
+    question: "Quelle est la différence entre l'attribut `i18n` d'un template et `$localize` en TypeScript, et à quel moment le texte est-il réellement traduit ?"
+    reponse: |
+      - `i18n` marque un texte traduisible dans un **template** HTML ; `$localize` (fonction *tagged template*) marque un texte traduisible construit en **TypeScript** (message dynamique, notification).
+      - Aucun des deux ne traduit rien lui-même : ce sont des marqueurs lus par l'outillage Angular (`@angular/localize`).
+      - La commande `ng extract-i18n` extrait ces textes marqués dans un fichier source (`messages.xlf` par défaut).
+      - La traduction effective a lieu au **build** : une fois les traductions fournies par locale et `angular.json` configuré (`i18n.sourceLocale`, `i18n.locales`), `ng build --localize` produit un dossier distinct par langue avec le texte déjà remplacé.
+    explication: "Bien insister sur le fait qu'il n'y a pas de traduction « à la volée » dans le navigateur avec cette approche : c'est un point souvent mal connu, à distinguer des bibliothèques comme Transloco ou ngx-translate."
+    lecon: i18n-angular
+
+  - id: ang-i18n-locale-pipes
+    niveau: junior
+    theme: Formats régionaux
+    type: qcm
+    question: "Une application définit `LOCALE_ID: 'fr'` mais l'affichage d'une date avec le pipe `date` lève une erreur au runtime. Quelle est la cause la plus probable ?"
+    code: |
+      { provide: LOCALE_ID, useValue: 'fr' }
+      // ...
+      {{ commande.date | date:'longDate' }}
+    choix:
+      - "Le pipe `date` ne fonctionne qu'avec `LOCALE_ID: 'en-US'`"
+      - "Les données de la locale `fr` n'ont pas été enregistrées avec `registerLocaleData()` : seule `en-US` est incluse par défaut"
+      - "Le format `'longDate'` n'existe pas, il faut utiliser `'full'`"
+      - "`commande.date` doit obligatoirement être une chaîne ISO, jamais un objet `Date`"
+    reponse: 1
+    explication: "`LOCALE_ID` indique quelle locale utiliser, mais ne fournit pas ses données (formats de date, séparateurs, pluriel…). Il faut les enregistrer explicitement avec `registerLocaleData(localeFr)`, importé depuis `@angular/common/locales/fr`, sinon Angular lève une erreur de type « Missing locale data »."
+    lecon: formats-locale
+
+  # ---------- Confirmé ----------
+  - id: ang-i18n-limites-approche
+    niveau: confirme
+    theme: Traduire une application
+    type: ouverte
+    question: "Quelles sont les limites de l'i18n officielle d'Angular, et dans quel cas préférerait-on une bibliothèque comme Transloco ou ngx-translate ?"
+    reponse: |
+      - Les traductions sont figées **au build** : corriger une seule phrase en production demande un rebuild complet de la locale concernée.
+      - Chaque locale configurée produit **un bundle distinct** (un dossier de sortie par langue) : pas de changement de langue à chaud sans recharger l'application.
+      - En contrepartie, la performance est optimale : rien n'est chargé ni interprété au runtime, le texte est déjà remplacé dans le bundle servi.
+      - Une bibliothèque runtime comme Transloco ou ngx-translate charge les traductions depuis un fichier (souvent JSON) et les résout dans le navigateur : elle permet de corriger une traduction ou de changer de langue sans redéploiement ni rechargement complet, au prix d'un coût d'exécution et d'une vérification plus faible à la compilation (une clé manquante n'est en général détectée qu'à l'exécution, pas par le compilateur Angular).
+    explication: "Un bon candidat relie explicitement le compromis performance/flexibilité au choix d'architecture, pas seulement une liste d'inconvénients isolée."
+    lecon: i18n-angular
+
+  - id: ang-i18n-fuseau-horaire
+    niveau: confirme
+    theme: Formats régionaux
+    type: qcm
+    question: "Une date stockée en UTC (`2024-03-15T23:30:00Z`) s'affiche différemment selon que la page est rendue côté serveur (SSR) ou recalculée côté client, alors que le code utilise le même pipe `date` sans troisième paramètre. Pourquoi ?"
+    choix:
+      - "Le pipe `date` ne peut pas être utilisé en SSR, il faut toujours passer par `Intl.DateTimeFormat` côté serveur"
+      - "Sans fuseau explicite, le pipe `date` utilise le fuseau horaire de l'environnement qui exécute le rendu — qui peut différer entre un serveur (souvent en UTC) et le navigateur de l'utilisateur"
+      - "C'est un bug connu d'Angular sans contournement possible"
+      - "Le format des dates ne peut jamais différer entre deux rendus d'une même donnée"
+    reponse: 1
+    explication: "C'est le piège classique du fuseau horaire : sans fuseau fixé explicitement (`date:'short':'Europe/Paris'` par exemple), l'affichage dépend du fuseau de l'environnement d'exécution, qui n'est pas garanti identique entre un serveur et un navigateur. Préciser le fuseau au pipe évite ce décalage."
+    lecon: formats-locale
+
+  # ---------- Senior ----------
+  - id: ang-i18n-focus-apres-navigation
+    niveau: senior
+    theme: Accessibilité
+    type: ouverte
+    question: "Comment gérer le focus clavier de façon accessible dans une application Angular après une navigation de route ou l'ouverture d'une boîte de dialogue modale ?"
+    reponse: |
+      - Le routeur d'Angular ne déplace **pas** automatiquement le focus : sans intervention, il reste sur l'élément qui a déclenché la navigation (souvent un lien dans l'en-tête), ce qui perd un utilisateur au clavier ou au lecteur d'écran.
+      - Bonne pratique : écouter la fin de navigation (`Router.events`, filtrer `NavigationEnd`) et déplacer explicitement le focus vers un élément pertinent de la nouvelle vue, typiquement le titre principal de la page, rendu focusable par script avec `tabindex="-1"` s'il ne l'est pas nativement.
+      - Pour une boîte de dialogue modale : confiner la navigation Tab à l'intérieur avec `cdkTrapFocus` (`@angular/cdk/a11y`), pour que le focus ne s'échappe pas vers un contenu masqué derrière l'overlay ; `role="dialog"` et `aria-modal="true"` complètent l'information donnée aux technologies d'assistance.
+      - Pour signaler un changement qui n'a pas nécessairement le focus (résultat de recherche, message de confirmation), `LiveAnnouncer` du CDK Angular permet d'annoncer un message sans interrompre l'utilisateur.
+    explication: "Une bonne réponse distingue clairement « déplacer le focus » (navigation, ouverture de dialogue) et « annoncer un message » (LiveAnnouncer), deux besoins souvent confondus."
+    lecon: accessibilite
+
+  - id: ang-i18n-semantique-avant-aria
+    niveau: senior
+    theme: Accessibilité
+    type: qcm
+    question: "Un développeur construit un menu déroulant personnalisé avec `<div role=\"button\" tabindex=\"0\" (click)=\"basculer()\">` et considère le travail d'accessibilité terminé une fois `role=\"button\"` ajouté. Quel est le principal problème restant ?"
+    choix:
+      - "Aucun : `role=\"button\"` suffit à rendre l'élément parfaitement accessible"
+      - "L'élément est annoncé comme un bouton mais rien ne gère l'activation au clavier (`Entrée`, `Espace`) : il faut l'ajouter explicitement, alors qu'un `<button>` natif le ferait sans code supplémentaire"
+      - "`role=\"button\"` est une valeur ARIA invalide en HTML5"
+      - "`tabindex=\"0\"` empêche l'élément de recevoir le focus"
+    reponse: 1
+    explication: "C'est l'illustration directe du principe « HTML sémantique avant ARIA » : ajouter un rôle ARIA change ce qui est *annoncé*, pas ce qui est *fonctionnel*. Sans gestion explicite des touches `Entrée`/`Espace` (et souvent d'autres détails, comme l'état `aria-expanded`), l'élément reste inutilisable au clavier malgré le rôle affiché — un `<button>` natif évite ce piège par construction."
+    lecon: accessibilite

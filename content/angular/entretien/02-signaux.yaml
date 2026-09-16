@@ -1,0 +1,115 @@
+# Questions d'entretien — Les signaux
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Junior ----------
+  - id: ang-sig-quest-ce-quun-signal
+    niveau: junior
+    theme: Les bases des signaux
+    type: ouverte
+    question: "Qu'est-ce qu'un signal en Angular, et pourquoi doit-on l'appeler avec des parenthèses pour lire sa valeur ?"
+    reponse: |
+      - Un **signal** est un conteneur de valeur qui prévient automatiquement Angular chaque fois que sa valeur change.
+      - On le crée avec `signal(valeurInitiale)`, ce qui renvoie un `WritableSignal<T>`.
+      - On le **lit** en l'appelant comme une fonction (`compteur()`), et on l'**écrit** avec `set()` (nouvelle valeur) ou `update()` (à partir de l'ancienne) — jamais en réassignant la variable.
+      - C'est en appelant le signal qu'Angular sait précisément qui dépend de lui (un template, un `computed()`, un `effect()`), et peut ne notifier que les bons consommateurs quand la valeur change.
+    explication: "Bonus en entretien : relier ça au mode zoneless — les signaux permettent à Angular de savoir exactement quoi mettre à jour, sans surveiller globalement l'application avec zone.js."
+    lecon: signal-bases
+
+  - id: ang-sig-immutabilite-tableau
+    niveau: junior
+    theme: Les bases des signaux
+    type: qcm
+    question: "Que se passe-t-il visuellement dans le template après ce code ?"
+    code: |
+      const favoris = signal<string[]>(['Clavier']);
+
+      function ajouterFavori(nom: string) {
+        favoris().push(nom);
+        favoris.set(favoris());
+      }
+      // template : @for (f of favoris(); track f) { <li>{{ f }}</li> }
+    choix:
+      - "Le nouvel élément apparaît dans la liste dès l'appel de la fonction"
+      - "Rien ne change dans le template, même si le tableau en mémoire contient bien le nouvel élément"
+      - "Une exception est levée au moment du `push()`"
+      - "Seul le premier élément de la liste s'affiche, les autres sont perdus"
+    reponse: 1
+    explication: "`push()` mute le tableau en place, puis `set()` reçoit la même référence : Angular compare par référence et ne détecte aucun changement. La bonne pratique est `favoris.update(f => [...f, nom])`, qui crée une nouvelle référence."
+    lecon: signal-bases
+
+  - id: ang-sig-input-required
+    niveau: junior
+    theme: Entrées et sorties
+    type: ouverte
+    question: "Que fait `input.required<T>()`, et en quoi se distingue-t-il de `input()` avec une valeur par défaut ?"
+    reponse: |
+      - `input.required<T>()` déclare une entrée **obligatoire** : le composant parent doit impérativement la fournir dans son template.
+      - Si le parent l'omet, ce n'est pas une erreur silencieuse au runtime : le **compilateur de templates** Angular la détecte et refuse de compiler.
+      - `input(valeurParDefaut)` déclare au contraire une entrée **optionnelle** : si le parent ne la fournit pas, le signal renvoie la valeur par défaut donnée en argument.
+      - Dans les deux cas, l'entrée est exposée comme un signal en lecture seule, lu avec des parenthèses (`monInput()`).
+    lecon: inputs-outputs
+
+  # ---------- Confirmé ----------
+  - id: ang-sig-computed-vs-effect
+    niveau: confirme
+    theme: computed() et effect()
+    type: ouverte
+    question: "Quelle est la différence entre `computed()` et `effect()` ? Dans quel cas utiliser l'un plutôt que l'autre ?"
+    reponse: |
+      - `computed()` crée un **signal dérivé**, en lecture seule : il renvoie une valeur, calculée de façon **paresseuse** (à la lecture) et **mémorisée** (recalculée seulement si une dépendance a changé). Exemple : un total de panier calculé à partir des lignes de commande.
+      - `effect()` ne renvoie rien : c'est une fonction qui s'exécute automatiquement quand ses dépendances changent, réservée aux **effets de bord** — synchroniser avec quelque chose en dehors du système de réactivité d'Angular (stockage local, journalisation, une librairie tierce non réactive).
+      - Règle pratique : si le résultat est **une valeur** utilisée ailleurs, `computed()`. Si le but est de **faire quelque chose** à l'extérieur d'Angular, `effect()`.
+      - Un `effect()` ne doit ni calculer un état dérivé, ni écrire dans un autre signal : la documentation Angular déconseille explicitement ce dernier point, car ça complique le graphe de dépendances et peut créer des boucles.
+    explication: "Un bon candidat cite spontanément l'anti-pattern « effect() qui écrit dans un signal » et sait le corriger avec computed()."
+    lecon: computed-effect
+
+  - id: ang-sig-effect-antipattern
+    niveau: confirme
+    theme: computed() et effect()
+    type: qcm
+    question: "Quel est le principal problème de ce code ?"
+    code: |
+      const prixHT = signal(120);
+      const remise = signal(0.1);
+      const prixTTC = signal(0);
+
+      effect(() => {
+        prixTTC.set(prixHT() * (1 - remise()));
+      });
+    choix:
+      - "`effect()` ne peut pas lire plusieurs signaux à la fois"
+      - "`prixTTC` devrait être un `computed()` : dériver un état via un `effect()` qui écrit dans un autre signal est un anti-pattern déconseillé par Angular"
+      - "Il manque un appel à `.detectChanges()` après le `set()`"
+      - "`signal(0)` ne peut pas être modifié par la suite"
+    reponse: 1
+    explication: "`prixTTC` n'est ici qu'un état dérivé de `prixHT` et `remise` : `computed(() => prixHT() * (1 - remise()))` fait exactement ça, sans passer par un effect qui écrit dans un signal séparé — plus simple, plus prévisible, et sans risque de boucle de mise à jour."
+    lecon: computed-effect
+
+  - id: ang-sig-linkedsignal-usage
+    niveau: confirme
+    theme: computed() et effect()
+    type: ouverte
+    question: "Dans quel cas utiliseriez-vous `linkedSignal()` plutôt qu'un `computed()` classique ?"
+    reponse: |
+      - `computed()` produit un `Signal<T>` **jamais modifiable** de l'extérieur : sa valeur est entièrement déterminée par ses dépendances.
+      - `linkedSignal()` produit un `WritableSignal<T>` dont la valeur **par défaut** se réinitialise automatiquement quand une source change, mais que l'utilisateur (ou le composant) peut ensuite **modifier manuellement**.
+      - Cas d'usage typique : une sélection dans une liste (`produitSelectionne`) qui doit revenir au premier élément quand la liste `produits` change, tout en restant modifiable librement par l'utilisateur entre deux changements de liste.
+      - Sans `linkedSignal()`, il faudrait un `effect()` qui réinitialise un signal séparé — exactement le genre d'écriture croisée entre signaux que l'on cherche à éviter.
+    lecon: computed-effect
+
+  - id: ang-sig-viewchild-vs-decorateur
+    niveau: confirme
+    theme: Accès aux vues
+    type: qcm
+    question: "Quel est l'avantage principal de `viewChild()` (signal) par rapport au décorateur `@ViewChild` ?"
+    choix:
+      - "`viewChild()` est plus rapide à l'exécution, car il ne passe pas par le moteur de détection de changements"
+      - "`viewChild()` renvoie un signal lisible n'importe où (y compris dans `computed()`/`effect()`), qui vaut `undefined` puis se met à jour automatiquement, sans devoir attendre un hook de cycle de vie précis comme `ngAfterViewInit`"
+      - "`viewChild()` peut cibler des éléments projetés par le composant parent, ce que `@ViewChild` ne permet pas"
+      - "`@ViewChild` est déprécié en Angular 21, `viewChild()` est la seule option encore supportée"
+    reponse: 1
+    explication: "`@ViewChild` reste pleinement supporté (pas déprécié), mais sa valeur n'est fiable qu'à partir de `ngAfterViewInit`. `viewChild()` expose un signal utilisable partout, qui commence à `undefined` et se met à jour tout seul dès que la vue est initialisée — et se compose naturellement avec `computed()`/`effect()`. Cibler un élément projeté est le rôle de `contentChild()`, pas une différence entre `viewChild()` et `@ViewChild`."
+    lecon: requetes-vues

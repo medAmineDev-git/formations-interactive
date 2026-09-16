@@ -1,0 +1,109 @@
+# Questions d'entretien — Sécurité côté front
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  - id: ang-sec-xss-protections
+    niveau: confirme
+    theme: XSS et sanitization
+    type: ouverte
+    question: "Quelles sont les protections intégrées d'Angular contre les failles XSS ? Dans quel cas doit-on explicitement les contourner, et comment ?"
+    reponse: |
+      - L'**interpolation** `{{ }}` échappe toujours sa valeur en tant que texte, jamais interprétée comme HTML.
+      - Chaque liaison de propriété est **sanitizée selon son contexte de sécurité** : HTML (`[innerHTML]`), Style, URL, Resource URL. `[innerHTML]` retire par exemple les balises `<script>` et les gestionnaires d'événements (`onerror`...) tout en gardant la mise en forme sûre.
+      - La **compilation AOT**, par défaut en production, empêche l'injection de template : impossible d'interpréter dynamiquement une chaîne fournie par un utilisateur comme un nouveau template.
+      - Contournement explicite via `DomSanitizer.bypassSecurityTrust*` (`Html`, `Style`, `Script`, `Url`, `ResourceUrl`), uniquement sur du contenu dont la provenance est prouvée fiable (jamais une saisie utilisateur brute).
+    explication: "Un bon candidat distingue bien la sanitization automatique (par contexte) du contournement volontaire, et sait justifier pourquoi ce dernier ne doit jamais s'appliquer à une donnée utilisateur."
+    lecon: xss-sanitization
+
+  - id: ang-sec-innerhtml-comportement
+    niveau: senior
+    theme: XSS et sanitization
+    type: qcm
+    question: "Un développeur affiche `avis.texte` avec `[innerHTML]`, où `avis.texte` vaut `<b>Top produit</b><script>vol()</script>`. Que se passe-t-il ?"
+    code: |
+      @Component({
+        selector: 'app-avis',
+        template: `<div [innerHTML]="avis.texte"></div>`,
+      })
+      export class AvisCmp {
+        avis = { texte: '<b>Top produit</b><script>vol()</script>' };
+      }
+    choix:
+      - "« Top produit » s'affiche en gras, le <script> est retiré par la sanitization automatique"
+      - "Rien ne s'affiche : Angular vide tout le contenu dès qu'il détecte une balise <script>"
+      - "Le texte entier, balises comprises, s'affiche littéralement comme dans une interpolation"
+      - "Une exception est levée au rendu du composant"
+    reponse: 0
+    explication: "`[innerHTML]` interprète bien la valeur comme du HTML (contrairement à l'interpolation), mais passe par la sanitization du contexte HTML : les éléments et attributs dangereux (`<script>`, gestionnaires `on*`) sont retirés, la mise en forme sûre (`<b>`) est conservée."
+    lecon: xss-sanitization
+
+  - id: ang-sec-oauth-client-public
+    niveau: confirme
+    theme: Authentification OAuth2/OIDC
+    type: ouverte
+    question: "Pourquoi une application Angular ne peut-elle pas utiliser un flux OAuth2 qui repose sur un secret client, et quel flux utiliser à la place ?"
+    reponse: |
+      - Une application front est un **client public** : tout son code s'exécute chez l'utilisateur et est inspectable, elle ne peut donc garder aucun secret confidentiel.
+      - Le flux recommandé est **Authorization Code avec PKCE** : l'application génère localement un `code_verifier` aléatoire, en dérive un `code_challenge` envoyé à la demande d'autorisation, puis fournit le `code_verifier` d'origine lors de l'échange du code contre les jetons.
+      - PKCE protège cet échange sans secret statique : un code intercepté ne peut pas être échangé par un tiers qui ignore le `code_verifier`.
+      - L'ancien flux implicite (jetons renvoyés directement dans le fragment d'URL) n'est plus recommandé, car il expose les jetons à l'historique de navigation et à d'autres scripts.
+    explication: "Un bon candidat sait citer PKCE spontanément et expliquer que ce n'est pas un simple ajout de sécurité, mais le remplacement fonctionnel du secret client absent chez un client public."
+    lecon: auth-oidc
+
+  - id: ang-sec-stockage-jetons
+    niveau: senior
+    theme: Authentification OAuth2/OIDC
+    type: qcm
+    question: "Quel est le principal compromis à connaître entre stocker un jeton d'accès dans localStorage plutôt que dans un cookie HttpOnly posé par le serveur ?"
+    choix:
+      - "localStorage est plus rapide à lire, il n'y a aucun autre compromis à connaître"
+      - "localStorage est lisible par tout script exécuté sur la page (donc par une faille XSS), alors qu'un cookie HttpOnly est inaccessible en JavaScript mais nécessite un backend coopérant et une protection CSRF"
+      - "Un cookie HttpOnly ne peut pas être envoyé automatiquement avec les requêtes HTTP"
+      - "localStorage expire automatiquement après la fermeture de l'onglet, contrairement à un cookie"
+    reponse: 1
+    explication: "C'est le compromis central du stockage de jetons côté front : localStorage persiste facilement mais expose le jeton à toute exécution de script non prévue (XSS) ; le cookie HttpOnly protège de cette exposition en JavaScript, au prix d'une architecture backend adaptée (souvent un BFF) et d'une protection CSRF à mettre en place."
+    lecon: auth-oidc
+
+  - id: ang-sec-guard-vs-serveur
+    niveau: senior
+    theme: Authentification OAuth2/OIDC
+    type: ouverte
+    question: "Un guard de route (CanActivateFn) empêche l'accès à /admin si l'utilisateur n'est pas authentifié. Est-ce suffisant pour protéger les données de l'API /api/admin ? Pourquoi ?"
+    reponse: |
+      - Non. Un guard de route s'exécute entièrement dans le navigateur : il conditionne uniquement l'**affichage** côté client.
+      - Rien n'empêche un attaquant d'appeler directement `/api/admin/...` sans passer par l'interface Angular, contournant totalement le guard.
+      - La seule protection réelle des données est la vérification du jeton (signature, expiration, portée/scope) **côté serveur**, à chaque requête API, indépendamment de ce que fait le front.
+      - Le guard reste utile pour l'expérience utilisateur (éviter d'afficher une page inutile, rediriger proprement vers la connexion), mais ne doit jamais être présenté comme une mesure de sécurité en soi.
+    explication: "Un bon candidat insiste sur la distinction entre expérience utilisateur et sécurité réelle : la confusion des deux est une erreur de conception fréquente, y compris chez des développeurs expérimentés."
+    lecon: auth-oidc
+
+  - id: ang-sec-csrf-httpclient
+    niveau: confirme
+    theme: Autres risques
+    type: qcm
+    question: "Par défaut, comment fonctionne la protection CSRF intégrée de HttpClient dans Angular ?"
+    choix:
+      - "Elle chiffre systématiquement le corps de toutes les requêtes sortantes"
+      - "Elle lit un jeton dans le cookie XSRF-TOKEN et le renvoie dans l'en-tête X-XSRF-TOKEN sur les requêtes mutantes vers une URL relative de même origine"
+      - "Elle bloque toute requête ne provenant pas du même onglet du navigateur"
+      - "Elle ajoute automatiquement un CAPTCHA avant chaque requête POST"
+    reponse: 1
+    explication: "Par défaut, HttpClient lit le cookie XSRF-TOKEN (posé par le serveur, lisible en JavaScript) et le renvoie dans l'en-tête X-XSRF-TOKEN sur les requêtes mutantes vers une URL relative de même origine. Seul du code s'exécutant sur le domaine légitime peut lire ce cookie et reproduire l'en-tête attendu, ce qu'un site tiers forgeant une requête ne peut pas faire. withXsrfConfiguration() permet d'en personnaliser les noms, withNoXsrfProtection() de la désactiver."
+    lecon: risques-front
+
+  - id: ang-sec-revue-avant-prod
+    niveau: senior
+    theme: Autres risques
+    type: ouverte
+    question: "Quels points vérifieriez-vous lors d'une revue de sécurité avant la mise en production d'une application Angular ?"
+    reponse: |
+      - **Dépendances** : `npm audit` sans vulnérabilité critique non traitée, version d'Angular maintenue (`ng update` régulier).
+      - **Secrets** : aucune clé d'API ou jeton dans le bundle (`environment.*.ts` inclus) — tout code livré au navigateur, minifié ou non, est public ; une opération nécessitant un secret passe par un backend.
+      - **CSP** : en place, idéalement testée d'abord en `Content-Security-Policy-Report-Only` avant un déploiement en mode bloquant.
+      - **CSRF** : activée si l'authentification repose sur un cookie, avec des noms de cookie/en-tête cohérents entre le front et le backend.
+      - **Journalisation** : aucune donnée personnelle, mot de passe ou jeton envoyé en clair vers la console ou un outil de suivi d'erreurs tiers.
+      - **HTTPS** partout, y compris sur les environnements proches de la production.
+    explication: "Un bon candidat structure sa réponse en catégories claires plutôt que d'énumérer des points isolés, et sait justifier pourquoi le bundle JavaScript ne peut jamais contenir de secret."
+    lecon: risques-front

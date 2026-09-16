@@ -1,0 +1,105 @@
+# Questions d'entretien — Tester une application Angular
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Confirmé ----------
+  - id: ang-test-vitest-defaut
+    niveau: confirme
+    theme: Vitest et TestBed
+    type: ouverte
+    question: "Quel est le runner de tests par défaut d'un nouveau projet Angular 21 ? Karma est-il encore utilisable ?"
+    reponse: |
+      - Depuis Angular 21, `ng new` installe et configure **Vitest** par défaut (avec `jsdom` pour simuler le DOM), promu **stable** dans cette version.
+      - `ng test` construit l'application en mode watch et lance Vitest ; les tests s'exécutent dans Node.js, pas dans un vrai navigateur, ce qui les rend nettement plus rapides que Karma.
+      - **Karma reste pleinement supporté** : ce n'est plus le choix par défaut d'un nouveau projet, mais un projet existant sous Karma continue de fonctionner, et on peut toujours le choisir explicitement pour un nouveau projet.
+      - Un schematic (`ng g @schematics/angular:refactor-jasmine-vitest`) aide à migrer un projet Karma/Jasmine existant vers Vitest.
+    explication: "Un bon candidat précise bien que Karma n'est pas déprécié ni retiré : seul le défaut a changé. Confondre les deux est une erreur fréquente."
+    lecon: vitest-testbed
+
+  - id: ang-test-createcomponent-freeze
+    niveau: confirme
+    theme: Vitest et TestBed
+    type: qcm
+    question: "Pourquoi ce code lève-t-il une erreur ?"
+    code: |
+      const fixture = TestBed.createComponent(PanierComponent);
+      TestBed.configureTestingModule({
+        providers: [{ provide: PanierService, useClass: PanierServiceStub }],
+      });
+    choix:
+      - "`TestBed.createComponent()` fige la configuration courante : on ne peut plus appeler `configureTestingModule()` après"
+      - "`PanierServiceStub` n'existe pas encore au moment de l'exécution"
+      - "Il manque un `await` devant `TestBed.createComponent()`"
+      - "`providers` ne peut contenir qu'un seul élément à la fois"
+    reponse: 0
+    explication: "Tous les `imports` et `providers` nécessaires doivent être déclarés dans un seul appel à `configureTestingModule()`, avant `createComponent()`. Une fois le composant créé, la configuration de `TestBed` est verrouillée."
+    lecon: vitest-testbed
+
+  - id: ang-test-setinput
+    niveau: confirme
+    theme: Tester un composant
+    type: ouverte
+    question: "Comment donner une valeur à une entrée signal (`input()`) d'un composant dans un test, et pourquoi ne peut-on pas simplement l'affecter sur l'instance ?"
+    reponse: |
+      - On utilise `fixture.componentRef.setInput('nomEntree', valeur)`, qui passe par le vrai mécanisme de liaison d'entrée d'Angular — exactement ce que ferait un composant parent en template.
+      - Affecter directement `component.nomEntree = valeur` sur l'instance ne passe pas par ce mécanisme : une entrée signal est en lecture seule côté composant, et un `input.required()` non fourni normalement devrait être détecté au niveau du template, pas contourné par une affectation.
+      - `setInput()` doit s'appeler avant de lire le rendu (souvent suivi d'un `await fixture.whenStable()` ou d'un `fixture.detectChanges()`).
+    lecon: tests-composants
+
+  - id: ang-test-double-dependance
+    niveau: confirme
+    theme: Tester un composant
+    type: ouverte
+    question: "Un composant dépend d'un `PanierService` qui fait des appels réseau. Comment le tester sans dépendre du vrai réseau ?"
+    reponse: |
+      - Fournir un **double de test** dans `TestBed.configureTestingModule({ providers: [...] })`, par exemple `{ provide: PanierService, useClass: PanierServiceStub }` (ou `useValue` avec un objet minimal).
+      - Le double expose la même interface que le vrai service, mais avec un comportement contrôlé et prévisible (pas d'appel réseau réel, valeurs de retour fixées par le test).
+      - Alternative pour un composant enfant coûteux : `overrideComponent()` pour le remplacer par un composant factice, si le but du test n'est pas de vérifier le comportement de cet enfant.
+      - Ça isole le composant testé, rend le test rapide et reproductible, et évite qu'un test échoue à cause d'un problème réseau sans rapport avec le composant lui-même.
+    explication: "En entretien, relier ça au principe plus large : un test unitaire ou de composant doit être déterministe, donc ne jamais dépendre d'un vrai service réseau."
+    lecon: tests-composants
+
+  # ---------- Senior ----------
+  - id: ang-test-http-provider-order
+    niveau: senior
+    theme: Tester services et appels HTTP
+    type: qcm
+    question: "Dans quel ordre faut-il déclarer ces deux providers dans `TestBed.configureTestingModule()`, et pourquoi ?"
+    choix:
+      - "`provideHttpClient()` puis `provideHttpClientTesting()` : ce dernier doit remplacer le backend réel configuré par le premier, y compris avec des fonctionnalités comme des intercepteurs"
+      - "`provideHttpClientTesting()` puis `provideHttpClient()` : le backend de test doit être déclaré avant d'être écrasé par le vrai client"
+      - "L'ordre n'a aucune importance, Angular résout les deux providers indépendamment"
+      - "Il faut choisir l'un ou l'autre, jamais les deux ensemble"
+    reponse: 0
+    explication: "`provideHttpClientTesting()` doit venir après `provideHttpClient(...)` pour remplacer correctement le backend HTTP réel par le backend de test. Inverser l'ordre peut compromettre le test de façon silencieuse, en particulier si `provideHttpClient()` configure des intercepteurs."
+    lecon: tests-services-http
+
+  - id: ang-test-fakeasync-vitest
+    niveau: senior
+    theme: Tester services et appels HTTP
+    type: qcm
+    question: "Un développeur veut utiliser `fakeAsync` et `tick()` dans un nouveau projet Angular 21 testé avec Vitest. Que faut-il lui répondre ?"
+    choix:
+      - "C'est le bon choix : `fakeAsync` est l'outil recommandé pour tout code asynchrone en Angular 21"
+      - "`fakeAsync` n'est plus recommandé et, surtout, ne fonctionne pas avec le runner Vitest ; il faut utiliser les minuteurs simulés de Vitest (`vi.useFakeTimers()`, `vi.runAllTimersAsync()`) à la place"
+      - "`fakeAsync` fonctionne avec Vitest, mais uniquement pour les tests de composants, pas les services"
+      - "`fakeAsync` a été retiré d'Angular 21 et provoque une erreur de compilation"
+    reponse: 1
+    explication: "C'est un point explicitement documenté pour Angular 21 : `fakeAsync` n'est plus recommandé, et son usage est incompatible avec Vitest. Un candidat senior doit connaître l'alternative (minuteurs simulés de Vitest) plutôt que de simplement dire « ça ne marche pas »."
+    lecon: tests-services-http
+
+  - id: ang-test-priorite-strategie
+    niveau: senior
+    theme: Stratégie de tests
+    type: ouverte
+    question: "Sur un projet avec un budget de test limité, comment décidez-vous quoi tester en priorité ?"
+    reponse: |
+      - En priorité, la **logique métier** : calculs, règles, états, cas limites (ex. calcul de remise, validation de stock) — c'est là que se cachent le plus souvent les vrais bugs, et ce sont les tests unitaires les plus rapides à écrire et à faire tourner.
+      - Ensuite, les tests de composants là où l'intégration composant-template a un vrai risque (affichage conditionnel critique, formulaire complexe) — pas sur chaque détail visuel.
+      - Les tests de bout en bout (Playwright, Cypress) réservés à un petit nombre de parcours critiques (connexion, paiement), car ils sont lents et coûteux à maintenir.
+      - Éviter les tests fragiles : sélecteurs CSS trop précis, dépendance à un délai réel arbitraire plutôt qu'à un signal d'attente précis (`whenStable()`, résolution d'une promesse).
+      - Ne jamais viser un pourcentage de couverture de code comme objectif en soi : l'utiliser seulement pour repérer des zones non testées.
+    explication: "Un bon candidat sait justifier ses priorités avec la pyramide de tests, sans réciter la théorie de façon abstraite — il relie ça à des exemples concrets (calcul métier vs détail visuel)."
+    lecon: strategie-tests-angular

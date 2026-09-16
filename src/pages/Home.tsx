@@ -5,11 +5,11 @@ import { ProgressBar } from '../components/ui'
 import { dueTerms, interviewProgress, learnProgress, percent } from '../lib/progress'
 import { useStore } from '../lib/store'
 
-// Technologies prévues, affichées en « bientôt » tant que leur contenu n'existe pas
+// Technologies prévues : la carte « bientôt » disparaît dès qu'un content/<techno>/ existe
 const UPCOMING = [
   { nom: 'Java', icone: '☕' },
   { nom: 'Angular', icone: '🅰️' },
-]
+].filter((t) => !techs.some((tech) => tech.nom.toLowerCase() === t.nom.toLowerCase()))
 
 export function Home() {
   const state = useStore()

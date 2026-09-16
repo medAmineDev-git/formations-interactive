@@ -1,0 +1,76 @@
+questions:
+  - id: ang-http-configuration
+    niveau: junior
+    theme: Mettre en place HttpClient
+    type: ouverte
+    question: "Comment active-t-on HttpClient dans une application Angular 21, et comment l'injecte-t-on dans un service ?"
+    reponse: |
+      - `provideHttpClient()` doit être ajouté aux `providers` de l'application, typiquement dans `app.config.ts`. Sans lui, l'injection de `HttpClient` échoue au démarrage (`NullInjectorError`).
+      - Dans un service, on l'injecte avec `inject(HttpClient)` plutôt que par le constructeur, même si les deux formes sont valides.
+      - `provideHttpClient()` accepte des options : `withFetch()` (bascule vers l'API `fetch`, alors que le backend par défaut en Angular 21 reste `XMLHttpRequest`), `withInterceptors([...])` pour enregistrer des intercepteurs fonctionnels.
+      - Bonne pratique : encapsuler les appels dans un service dédié par domaine métier plutôt que d'appeler `HttpClient` directement dans un composant.
+    explication: "Un candidat solide mentionne spontanément que le backend par défaut en Angular 21 est XMLHttpRequest, pas fetch — un point souvent mal connu car beaucoup de contenus en ligne reflètent déjà Angular 22."
+    lecon: httpclient
+
+  - id: ang-http-observable-froid
+    niveau: junior
+    theme: Mettre en place HttpClient
+    type: qcm
+    question: "Ce code compile et s'exécute sans erreur. Que se passe-t-il réellement ?"
+    code: |
+      export class PanierService {
+        private http = inject(HttpClient);
+
+        viderPanier(panierId: number) {
+          this.http.delete(`/api/paniers/${panierId}`);
+        }
+      }
+    choix:
+      - "La requête DELETE part immédiatement vers le serveur"
+      - "Aucune requête ne part : l'Observable retourné par delete() n'est jamais souscrit"
+      - "Une exception est levée au moment de l'appel à viderPanier()"
+      - "La requête part, mais seulement après un délai par défaut de quelques secondes"
+    reponse: 1
+    explication: "L'Observable retourné par HttpClient est froid : sans .subscribe(), sans AsyncPipe ni toSignal(), rien ne se déclenche. C'est un piège classique en entretien, souvent confondu avec le comportement d'une Promise, exécutée dès sa création."
+    lecon: httpclient
+
+  - id: ang-http-intercepteur-jeton
+    niveau: confirme
+    theme: Les intercepteurs
+    type: ouverte
+    question: "Comment écrire un intercepteur qui ajoute un jeton d'authentification à chaque requête, et pourquoi ne peut-on pas simplement modifier req.headers directement ?"
+    reponse: |
+      - Un intercepteur fonctionnel a le type `HttpInterceptorFn` : `(req, next) => Observable<HttpEvent<unknown>>`.
+      - `HttpRequest` est **immuable** : ses propriétés, dont `headers`, sont en lecture seule. Toute modification passe par `req.clone({ headers: req.headers.set('Authorization', ...) })`, qui retourne une copie.
+      - La copie modifiée est ensuite passée à `next(...)` pour poursuivre la chaîne ; ne pas appeler `next` bloque définitivement la requête, sans erreur visible.
+      - L'intercepteur s'enregistre avec `withInterceptors([authInterceptor])` dans `provideHttpClient(...)`, et `inject(...)` fonctionne directement dans son corps pour récupérer le jeton (ex. via un `AuthService`).
+    explication: "Le point qui distingue un candidat confirmé : expliquer clairement que req.clone() existe parce que HttpRequest est immuable, pas juste réciter la syntaxe."
+    lecon: intercepteurs
+
+  - id: ang-http-erreurs-retry
+    niveau: confirme
+    theme: Erreurs et chargement
+    type: qcm
+    question: "Une équipe ajoute retry({ count: 3 }) sur l'appel qui valide une commande (POST /api/commandes) pour la rendre plus robuste face aux coupures réseau. Quel est le risque principal ?"
+    choix:
+      - "retry() ne fonctionne pas sur les méthodes autres que GET, le code ne compile pas"
+      - "Si le serveur a bien traité la première tentative mais que sa réponse s'est perdue, les tentatives suivantes risquent de créer plusieurs commandes identiques"
+      - "retry() ralentit systématiquement la requête initiale, même en l'absence d'erreur"
+      - "Aucun risque : retry() vérifie automatiquement si l'opération a déjà réussi avant de la rejouer"
+    reponse: 1
+    explication: "POST n'est pas idempotent : rejouer automatiquement une requête d'écriture après un échec apparent peut dupliquer une ressource déjà créée côté serveur. retry() convient à des opérations idempotentes comme GET, pas à une création de commande sans garantie d'idempotence côté serveur."
+    lecon: erreurs-http
+
+  - id: ang-http-resource-statut
+    niveau: confirme
+    theme: "resource() et httpResource()"
+    type: ouverte
+    question: "Un développeur propose d'utiliser httpResource() pour le catalogue produits d'une application Angular 21 qui doit passer en production dans un mois. Que lui répondez-vous ?"
+    reponse: |
+      - `httpResource()` (et `resource()`) sont explicitement marquées **expérimentales** dans la documentation d'Angular 21 (« ready to try, but might change before it is stable »). Leur stabilisation n'est prévue qu'en **Angular 22**.
+      - Attention à la confusion fréquente : le domaine générique `angular.dev` affiche par défaut la documentation de la version courante, où ces API sont déjà stables — ce qui laisse croire à tort qu'elles le sont aussi en Angular 21.
+      - Concrètement, cela signifie que leur signature ou leur comportement peuvent encore changer d'une version mineure à l'autre, contrairement à une API stable comme `HttpClient`.
+      - Alternative stable pour un besoin équivalent (requête réactive à un signal, état de chargement) : `HttpClient` combiné à `toObservable()` / `switchMap()` / `toSignal()`, plus verbeux mais sans risque de rupture d'API avant la mise en production.
+      - Un compromis raisonnable : l'essayer sur une fonctionnalité isolée et non critique, pas sur le cœur du catalogue produits d'une mise en production imminente.
+    explication: "Cette question teste la capacité à distinguer une API récente et pratique d'une API prête pour la production — un réflexe attendu d'un profil confirmé, au-delà de la simple connaissance de la syntaxe."
+    lecon: httpresource

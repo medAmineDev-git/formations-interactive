@@ -1,0 +1,88 @@
+# Questions d'entretien — Performance et détection de changements
+# type: qcm      → choix + reponse (index de la bonne réponse, à partir de 0)
+# type: ouverte  → reponse (texte Markdown), l'utilisateur s'auto-évalue
+# lecon: id de la leçon affichée par le bouton « Voir la leçon »
+
+questions:
+  # ---------- Confirmé ----------
+  - id: ang-perf-zoneless-vs-zonejs
+    niveau: confirme
+    theme: Détection de changements
+    type: ouverte
+    question: "Quelle est la différence entre le mode zone.js et le mode zoneless en Angular 21 ? Qu'est-ce qui déclenche un rafraîchissement de vue dans chacun des deux modes ?"
+    reponse: |
+      - **zone.js** patche les API asynchrones du navigateur (`setTimeout`, `addEventListener`, promesses…) pour être notifié de leur fin, et déclenche alors un cycle de détection de changements **global**, sur toute l'application.
+      - **Zoneless** (`provideZonelessChangeDetection()`, **stable et par défaut pour tout nouveau projet Angular 21**) abandonne ce mécanisme global : Angular ne re-vérifie une vue que sur des déclencheurs **explicites** — un signal lu dans le template qui change, un événement de template, `AsyncPipe`, ou un appel manuel à `ChangeDetectorRef.markForCheck()`.
+      - Conséquence pratique : un code qui mutait un objet ou modifiait une propriété simple dans un `setTimeout`, et qui « marchait par hasard » grâce au cycle global de zone.js, ne rafraîchit plus l'écran en zoneless — il faut passer par un signal.
+    explication: "Un bon candidat mentionne spontanément que zoneless retire le filet de sécurité global de zone.js, ce qui oblige à exprimer l'état réactif avec des signaux plutôt que des mutations directes."
+    lecon: detection-changements
+
+  - id: ang-perf-onpush-markforcheck
+    niveau: senior
+    theme: Détection de changements
+    type: qcm
+    question: "Un composant `OnPush` reçoit une donnée mise à jour par le callback d'une librairie JavaScript tierce non Angular, sans passer par un signal. Que faut-il faire pour que la vue se rafraîchisse ?"
+    choix:
+      - "Rien : `OnPush` détecte automatiquement tout changement, d'où qu'il vienne"
+      - "Injecter `ChangeDetectorRef` et appeler `markForCheck()` dans le callback pour signaler explicitement qu'une vérification est nécessaire"
+      - "Repasser le composant en `ChangeDetectionStrategy.Default` pour retrouver le comportement automatique"
+      - "Encapsuler l'appel de la librairie tierce dans un `setTimeout`"
+    reponse: 1
+    explication: "Le code d'une librairie tierce échappe au système de réactivité d'Angular (pas de signal, pas d'événement de template, pas d'`AsyncPipe`). `ChangeDetectorRef.markForCheck()` reste l'outil de secours pour signaler explicitement qu'une vérification est nécessaire, sans renoncer à `OnPush`."
+    lecon: detection-changements
+
+  - id: ang-perf-defer-cas-usage
+    niveau: confirme
+    theme: "@defer"
+    type: ouverte
+    question: "Dans quels cas utiliseriez-vous `@defer`, et quelle est la différence avec le chargement différé d'une route (`loadComponent`) ?"
+    reponse: |
+      - `@defer` diffère un **fragment de template** à l'intérieur d'une page déjà chargée, selon un déclencheur choisi (`on idle` par défaut, `on viewport`, `on interaction`, `on hover`, `on timer`, ou `when` avec une condition personnalisée).
+      - Cas d'usage typiques : un bloc de commentaires plus bas dans la page (`on viewport`), un graphique lourd affiché seulement sur demande (`on interaction`), un widget secondaire non prioritaire au premier affichage.
+      - Différence avec `loadComponent`/`loadChildren` : ces derniers diffèrent une **route entière**, déclenchée par la navigation. `@defer` diffère un fragment plus fin, à l'intérieur d'une route déjà affichée, sans navigation.
+      - Les deux mécanismes se combinent : une route chargée en `loadComponent` peut elle-même contenir des blocs `@defer` pour ses parties les moins prioritaires.
+    lecon: defer
+
+  - id: ang-perf-defer-placeholder-cls
+    niveau: senior
+    theme: "@defer"
+    type: qcm
+    question: "Un bloc `@defer (on viewport)` n'a pas de `@placeholder`, et son contenu est une grande image de bannière promotionnelle. Quel est le principal risque ?"
+    code: |
+      @defer (on viewport) {
+        <app-bandeau-promo />
+      }
+    choix:
+      - "Angular refuse de compiler le template, `@placeholder` étant obligatoire dans ce cas"
+      - "L'emplacement reste vide jusqu'au déclenchement, sans espace réservé : l'arrivée du bandeau décale brutalement le reste de la page (mauvais CLS)"
+      - "Le bandeau s'affiche immédiatement, `on viewport` n'ayant alors aucun effet"
+      - "Le comportement est strictement identique à un `@placeholder` vide"
+    reponse: 1
+    explication: "`@placeholder` est optionnel mais fortement recommandé : sans lui, aucun espace n'est réservé avant le déclenchement, et l'apparition du contenu différé décale le reste de la mise en page — ce qui dégrade le Cumulative Layout Shift (CLS), en particulier pour un élément aussi grand qu'une bannière."
+    lecon: defer
+
+  - id: ang-perf-track-listes-longues
+    niveau: confirme
+    theme: Listes et images
+    type: ouverte
+    question: "Pourquoi `track` est-il obligatoire dans `@for`, et que faites-vous si la liste à afficher contient plusieurs milliers d'éléments ?"
+    reponse: |
+      - `track` indique à Angular comment identifier un élément d'un rendu à l'autre (idéalement un identifiant métier stable comme `produit.id`). Sans clé fiable, Angular ne peut comparer les listes qu'en supposant que la position correspond à l'identité, ce qui force la destruction/recréation de nombreux éléments DOM dès qu'un tri ou un filtre change l'ordre.
+      - Avec un bon `track`, Angular **déplace** les nœuds DOM existants plutôt que de les recréer, et préserve leur état interne (focus, animation en cours).
+      - Pour une liste de plusieurs milliers d'éléments, même un `@for` bien configuré rend tout le monde dans le DOM : la solution est le **défilement virtuel** (`CdkVirtualScrollViewport`, `@angular/cdk/scrolling`), qui ne matérialise que les éléments visibles à l'écran, plus une marge.
+      - `track` et le défilement virtuel résolvent deux problèmes différents et se combinent : l'un le coût de mise à jour, l'autre le nombre d'éléments présents dans le DOM.
+    explication: "Un bon candidat distingue clairement track $index (fragile dès qu'un élément est inséré au milieu de la liste) d'un identifiant métier stable."
+    lecon: listes-images
+
+  - id: ang-perf-demarche-mesure
+    niveau: senior
+    theme: Mesurer la performance
+    type: ouverte
+    question: "Un collègue veut ajouter `OnPush` partout et passer l'application en zoneless « parce que ça devrait être plus rapide ». Que lui répondez-vous, et quelle démarche proposez-vous à la place ?"
+    reponse: |
+      - Optimiser sans mesurer revient à deviner : la bonne démarche est **mesurer, corriger un point précis, re-mesurer** — jamais changer plusieurs choses à la fois sans savoir laquelle a eu un effet.
+      - Première étape : confirmer qu'il y a réellement un problème, avec le **profileur d'Angular DevTools** (quels composants se re-rendent trop souvent, combien de temps ça prend), et **Lighthouse** pour les Core Web Vitals (LCP, INP, CLS) si c'est le ressenti utilisateur qui est en cause.
+      - Si le bundle initial est suspecté, `ng build --stats-json` avec un outil d'analyse de bundle montre précisément ce qui pèse, plutôt que de deviner.
+      - Appliquer ensuite une correction **ciblée** sur le point identifié par la mesure (un composant précis en `OnPush`, un `@defer` sur un fragment lourd et non prioritaire...), puis re-mesurer pour vérifier l'effet réel avant de généraliser le changement à toute l'application.
+    explication: "Un bon candidat refuse d'appliquer une optimisation générale sans données, et sait nommer au moins deux outils de mesure concrets (profileur Angular DevTools, Lighthouse)."
+    lecon: mesurer-performance

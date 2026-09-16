@@ -1,0 +1,74 @@
+questions:
+  - id: ang-arch-feature-based
+    niveau: confirme
+    theme: Organisation du projet
+    type: ouverte
+    question: "Pourquoi organiser un projet Angular par fonctionnalité (feature) plutôt que par type technique de fichier (components, services, directives) ?"
+    reponse: |
+      - C'est la recommandation du style guide officiel : regrouper par domaine métier (panier, catalogue) plutôt que par type de fichier.
+      - Avec des dossiers par type, comprendre ou modifier une fonctionnalité oblige à naviguer dans plusieurs dossiers sans rapport apparent.
+      - Avec des dossiers par fonctionnalité, tout ce qui concerne une fonctionnalité (composants, services, modèles, routes) est regroupé à un seul endroit : plus facile à retrouver, faire évoluer ou supprimer proprement.
+      - Chaque fonctionnalité peut exposer son propre fichier de routes, chargé en lazy-loading depuis les routes racine.
+    explication: "Bien citer la source (le style guide) évite de présenter ceci comme une simple préférence personnelle : c'est une recommandation documentée, contrairement au découpage core/shared/features qui, lui, relève de la convention d'équipe."
+    lecon: structure-projet
+
+  - id: ang-arch-core-shared-limites
+    niveau: senior
+    theme: Organisation du projet
+    type: ouverte
+    question: "Une équipe utilise les dossiers core, shared et features. Quelles limites de dépendances imposer entre ces dossiers pour que la structure reste lisible en grandissant, et pourquoi les barrels (index.ts) systématiques rendent-ils ces problèmes plus difficiles à repérer ?"
+    reponse: |
+      - shared ne doit dépendre que d'autres fichiers de shared, jamais d'une fonctionnalité précise.
+      - Une fonctionnalité (features/x) peut dépendre de core et shared, mais jamais directement d'une autre fonctionnalité (features/y) : le commun doit remonter dans shared ou core.
+      - core ne dépend d'aucune fonctionnalité et ne contient pas de composants d'affichage, seulement des services et guards transverses.
+      - Un barrel par dossier simplifie les imports mais masque les dépendances réelles (l'import pointe vers un dossier, pas un fichier précis), ce qui rend une dépendance circulaire entre deux fonctionnalités plus facile à créer sans s'en rendre compte, et plus difficile à diagnostiquer.
+    explication: "Préciser que core/shared/features est une convention d'équipe répandue, non une structure imposée par Angular, montre qu'on distingue les faits documentés des conventions — une nuance appréciée en entretien senior."
+    lecon: structure-projet
+
+  - id: ang-arch-smart-presentational-quand-excessif
+    niveau: confirme
+    theme: Composants intelligents et de présentation
+    type: ouverte
+    question: "Quels sont les avantages concrets du découpage composant intelligent / composant de présentation, et à partir de quand ce découpage devient-il excessif ?"
+    reponse: |
+      - Le composant de présentation devient réutilisable (le même composant sert dans plusieurs pages), car il ne dépend d'aucun service précis.
+      - Il se teste en isolation : fournir des entrées, vérifier les sorties émises, sans simuler de service.
+      - Le composant intelligent reste concentré sur l'orchestration (appels de service, navigation, état), sans se mélanger avec les détails d'affichage.
+      - Ce découpage devient excessif quand il est appliqué à un élément sans aucune logique à isoler (un simple bouton, un titre) : il ajoute des fichiers et des entrées/sorties sans bénéfice réel, puisqu'il n'y a rien à séparer.
+    explication: "Illustrer avec un exemple concret (une carte produit purement d'affichage face à une page catalogue qui appelle un service) montre une compréhension pratique, pas seulement le vocabulaire du pattern."
+    lecon: intelligents-presentation
+
+  - id: ang-arch-onpush-mutation-signal
+    niveau: senior
+    theme: Composants intelligents et de présentation
+    type: qcm
+    question: "Un composant de présentation OnPush reçoit `produits = input.required<Produit[]>();`. Le parent détient `produits = signal<Produit[]>([...]);` et exécute `this.produits().push(nouveauProduit)` sans `.set()` ni `.update()`. Le nouveau produit n'apparaît dans aucune carte. Pourquoi ?"
+    code: |
+      // Parent (intelligent)
+      produits = signal<Produit[]>([produitA, produitB]);
+
+      ajouter(produit: Produit) {
+        this.produits().push(produit); // mutation en place
+      }
+    choix:
+      - "OnPush bloque toute mise à jour venant d'un signal, quelle que soit la façon dont il est modifié"
+      - "push() mute le tableau existant sans changer la référence lue par le signal : le signal ne notifie donc personne, ni le parent ni l'entrée du composant enfant"
+      - "input.required() ne peut recevoir que des primitives, jamais des tableaux"
+      - "C'est un bug d'Angular 21 corrigé dans une version ultérieure"
+    reponse: 1
+    explication: "Ce n'est pas spécifique à OnPush : c'est la règle générale des signaux, à traiter comme des valeurs immuables. La correction est `this.produits.update((liste) => [...liste, produit])`, qui crée une nouvelle référence et déclenche la propagation jusqu'au composant enfant."
+    lecon: intelligents-presentation
+
+  - id: ang-arch-composant-vs-directive-vs-fonction
+    niveau: confirme
+    theme: Réutilisation
+    type: qcm
+    question: "Un comportement « repliable » (afficher/masquer au clic) doit s'appliquer à deux composants existants dont les templates n'ont rien en commun (une carte produit, un panneau de filtres). Quelle approche évite de dupliquer la logique sans imposer un template commun aux deux ?"
+    choix:
+      - "Extraire un composant wrapper unique `<app-repliable>` qui engloberait les deux avec un `<ng-content>`"
+      - "Une directive partagée, appliquée sur chacun des deux composants via hostDirectives, qui porte l'état et la logique de bascule sans template propre"
+      - "Copier la logique dans les deux composants, une directive ne pouvant pas partager d'état entre deux hôtes différents"
+      - "Un pipe qui transforme le contenu projeté selon un état ouvert/fermé"
+    reponse: 1
+    explication: "hostDirectives compose un comportement (état + logique) sur l'hôte de composants dont les templates diffèrent complètement, sans leur imposer de structure HTML commune — contrairement à un composant wrapper, qui imposerait sa propre mise en page autour du contenu projeté."
+    lecon: reutilisation
