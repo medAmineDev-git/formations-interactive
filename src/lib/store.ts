@@ -23,10 +23,11 @@ export interface State {
   favorites: string[]
   interview: Record<string, InterviewStatus>
   cards: Record<string, Card>
+  notes: Record<string, string>
 }
 
 const STORAGE_KEY = 'formations:v1'
-const EMPTY: State = { lessons: {}, visited: {}, favorites: [], interview: {}, cards: {} }
+const EMPTY: State = { lessons: {}, visited: {}, favorites: [], interview: {}, cards: {}, notes: {} }
 
 function load(): State {
   try {
@@ -84,6 +85,16 @@ export function toggleFavorite(fav: string) {
     ...s,
     favorites: s.favorites.includes(fav) ? s.favorites.filter((f) => f !== fav) : [...s.favorites, fav],
   }))
+}
+
+/** Note personnelle attachée à une leçon (clé « <techId>/<lessonId> »). */
+export function setNote(key: string, texte: string) {
+  update((s) => {
+    const notes = { ...s.notes }
+    if (texte.trim()) notes[key] = texte
+    else delete notes[key]
+    return { ...s, notes }
+  })
 }
 
 export function setInterviewStatus(key: string, status: InterviewStatus) {

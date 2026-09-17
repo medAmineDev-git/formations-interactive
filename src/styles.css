@@ -963,3 +963,110 @@ pre code.hljs {
     padding: 6px 8px;
   }
 }
+
+/* ---------- Bloc-notes (leçon) ---------- */
+
+.notepad,
+.notepad-tab {
+  position: fixed;
+  right: 16px;
+  top: 96px;
+  z-index: 20;
+}
+
+.notepad-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  padding: 8px 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.notepad-tab:hover {
+  color: var(--text);
+}
+
+.notepad {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  max-height: calc(100vh - 140px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+}
+.notepad__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.notepad__close {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 2px 6px;
+}
+.notepad__area {
+  flex: 1;
+  min-height: 240px;
+  resize: vertical;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 10px 12px;
+}
+.notepad__area:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.notepad__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.card--note {
+  border-left: 3px solid var(--accent);
+}
+.card--note .prose > :first-child {
+  margin-top: 8px;
+}
+
+/* Pas de place à côté du contenu : le bloc-notes passe en tiroir par-dessus. */
+@media (max-width: 1580px) {
+  .notepad {
+    width: min(360px, calc(100vw - 32px));
+    max-height: calc(100vh - 120px);
+  }
+}
+@media (max-width: 700px) {
+  .notepad,
+  .notepad-tab {
+    right: 10px;
+    top: auto;
+    bottom: 10px;
+  }
+  .notepad {
+    width: calc(100vw - 20px);
+    max-height: 60vh;
+  }
+  .notepad__area {
+    min-height: 160px;
+  }
+}
+.notepad__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

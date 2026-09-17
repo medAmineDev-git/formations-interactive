@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { allLessons, getLesson, getTech } from '../content/loader'
 import { LEARN_LEVELS } from '../content/types'
 import { LessonContent } from '../components/LessonContent'
+import { NotePad } from '../components/NotePad'
 import { Quiz } from '../components/Quiz'
 import { FavoriteButton, ProgressBar } from '../components/ui'
 import { learnProgress, lessonKey } from '../lib/progress'
@@ -33,6 +34,7 @@ export function LessonPage() {
 
   return (
     <div style={{ '--accent': tech.couleur } as CSSProperties}>
+      <NotePad noteKey={lessonKey(lesson)} techId={tech.id} />
       <ProgressBar levels={learnProgress(tech, state)} />
 
       <div className="breadcrumb">

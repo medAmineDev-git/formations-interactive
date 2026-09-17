@@ -4,13 +4,16 @@ import { getTech } from '../content/loader'
 import { INTERVIEW_LEVELS, LEARN_LEVELS, type Tech } from '../content/types'
 import { FavoriteButton, Inline, ProgressBar } from '../components/ui'
 import { interviewProgress, learnProgress, lessonKey, nextLesson, questionKey } from '../lib/progress'
+import { countNotes } from '../lib/notes'
+import { NotesTab } from './TechNotes'
 import { useStore } from '../lib/store'
 
 export function TechPage() {
   const { techId, tab = 'apprentissage' } = useParams()
+  const state = useStore()
   const tech = getTech(techId)
   if (!tech) return <Navigate to="/" replace />
-  if (tab !== 'apprentissage' && tab !== 'entretien') return <Navigate to={`/t/${tech.id}`} replace />
+  if (tab !== 'apprentissage' && tab !== 'entretien' && tab !== 'notes') return <Navigate to={`/t/${tech.id}`} replace />
 
   return (
     <div style={{ '--accent': tech.couleur } as CSSProperties}>
@@ -28,9 +31,14 @@ export function TechPage() {
         <NavLink to={`/t/${tech.id}/entretien`} className={() => (tab === 'entretien' ? 'active' : '')}>
           🎤 Entretien
         </NavLink>
+        <NavLink to={`/t/${tech.id}/notes`} className={() => (tab === 'notes' ? 'active' : '')}>
+          📝 Notes {countNotes(tech, state) > 0 && <span className="badge">{countNotes(tech, state)}</span>}
+        </NavLink>
       </nav>
 
-      {tab === 'apprentissage' ? <LearnTab tech={tech} /> : <InterviewTab tech={tech} />}
+      {tab === 'apprentissage' && <LearnTab tech={tech} />}
+      {tab === 'entretien' && <InterviewTab tech={tech} />}
+      {tab === 'notes' && <NotesTab tech={tech} />}
     </div>
   )
 }
